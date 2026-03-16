@@ -7,26 +7,29 @@
   let buttons = $derived($config.buttons);
   let deviceType = $derived($config.device ?? 'std10');
   let totalSlots = $derived(deviceType === 'mini6' ? 6 : 10);
+  let deviceName = $derived(deviceType === 'mini6' ? 'MINI 6' : 'CAPTAIN 10');
 
-  // SVG dimensions based on device type
-  let viewBox = $derived(deviceType === 'mini6' ? '0 0 560 400' : '0 0 800 400');
-  let maxWidth = $derived(deviceType === 'mini6' ? 560 : 800);
+  // SVG dimensions based on device type - increased for header/footer
+  let viewBox = $derived(deviceType === 'mini6' ? '0 0 560 600' : '0 0 900 650');
+  let maxWidth = $derived(deviceType === 'mini6' ? 560 : 900);
   let cols = $derived(deviceType === 'mini6' ? 3 : 5);
 
   // Button layout constants
   const BUTTON_SIZE = 120;
   const BUTTON_SPACING = 40;
   const BUTTON_RADIUS = 12;
-  const LED_SIZE = 20;
-  const LED_OFFSET = -30; // Above button
+  const LED_RING_RADIUS = 65; // Radius for LED ring around button
+  const LED_RING_WIDTH = 4; // Thickness of LED ring
+  const HEADER_HEIGHT = 80;
+  const FOOTER_HEIGHT = 60;
 
-  // Calculate button position
+  // Calculate button position (accounting for header)
   function getButtonPosition(index: number): { x: number; y: number } {
     const row = Math.floor(index / cols);
     const col = index % cols;
     return {
       x: BUTTON_SPACING + col * (BUTTON_SIZE + BUTTON_SPACING),
-      y: 60 + row * (BUTTON_SIZE + BUTTON_SPACING + 20)
+      y: HEADER_HEIGHT + 40 + row * (BUTTON_SIZE + BUTTON_SPACING + 40)
     };
   }
 
@@ -160,6 +163,75 @@
 
 <div class="device-layout-container">
   <svg {viewBox} class="device-svg" style="max-width: {maxWidth}px;">
+    <!-- Device Background with gradient -->
+    <defs>
+      <linearGradient id="deviceBg" x1="0%" y1="0%" x2="0%" y2="100%">
+        <stop offset="0%" style="stop-color:#1a1a1a;stop-opacity:1" />
+        <stop offset="100%" style="stop-color:#0a0a0a;stop-opacity:1" />
+      </linearGradient>
+      <filter id="glow">
+        <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+        <feMerge>
+          <feMergeNode in="coloredBlur"/>
+          <feMergeNode in="SourceGraphic"/>
+        </feMerge>
+      </filter>
+      <filter id="buttonShadow">
+        <feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity="0.5"/>
+      </filter>
+    </defs>
+
+    <!-- Device Background Panel -->
+    <rect width="100%" height="100%" fill="url(#deviceBg)" rx="8" />
+
+    <!-- Device Header -->
+    <g class="device-header">
+      <!-- Header Background -->
+      <rect x="0" y="0" width="100%" height="{HEADER_HEIGHT}" fill="#1a1a1a" />
+      
+      <!-- MIDI CAPTAIN Branding -->
+      <text
+        x="50%"
+        y="30"
+        class="brand-text"
+        text-anchor="middle"
+        dominant-baseline="middle"
+      >
+        MIDI CAPTAIN
+      </text>
+      
+      <!-- Device Name -->
+      <text
+        x="50%"
+        y="55"
+        class="device-name-text"
+        text-anchor="middle"
+        dominant-baseline="middle"
+      >
+        {deviceName}
+      </text>
+    </g>
+
+    <!-- Port Labels (top edge) -->
+    {#if deviceType === 'std10'}
+      <g class="port-labels">
+        <text x="40" y="{HEADER_HEIGHT + 20}" class="port-label">USB</text>
+        <text x="140" y="{HEADER_HEIGHT + 20}" class="port-label">DC 9V</text>
+        <text x="260" y="{HEADER_HEIGHT + 20}" class="port-label">MIDI OUT</text>
+        <text x="380" y="{HEADER_HEIGHT + 20}" class="port-label">MIDI IN</text>
+        <text x="500" y="{HEADER_HEIGHT + 20}" class="port-label">EXP 1</text>
+        <text x="600" y="{HEADER_HEIGHT + 20}" class="port-label">EXP 2</text>
+      </g>
+    {:else}
+      <g class="port-labels">
+        <text x="60" y="{HEADER_HEIGHT + 20}" class="port-label">USB</text>
+        <text x="180" y="{HEADER_HEIGHT + 20}" class="port-label">DC 9V</text>
+        <text x="300" y="{HEADER_HEIGHT + 20}" class="port-label">MIDI OUT</text>
+        <text x="420" y="{HEADER_HEIGHT + 20}" class="port-label">MIDI IN</text>
+      </g>
+    {/if}
+
+    <!-- Buttons with LED Rings -->
     {#each Array(totalSlots) as _, index}
       {@const pos = getButtonPosition(index)}
       {@const btn = getButton(index)}
@@ -172,6 +244,8 @@
       {@const mode = getButtonMode(btn)}
       {@const modeColor = getModeBadgeColor(btn)}
       {@const hasErrors = hasButtonErrors(index)}
+      {@const centerX = pos.x + BUTTON_SIZE / 2}
+      {@const centerY = pos.y + BUTTON_SIZE / 2}
 
       <!-- Button Group -->
       <g
@@ -191,17 +265,19 @@
       >
         <title>{tooltip}</title>
 
-        <!-- LED Indicator -->
+        <!-- LED Ring around button -->
         <circle
-          cx={pos.x + BUTTON_SIZE / 2}
-          cy={pos.y + LED_OFFSET}
-          r={LED_SIZE / 2}
-          class="led"
-          fill={ledColor}
-          style="filter: drop-shadow(0 0 4px {ledColor});"
+          cx={centerX}
+          cy={centerY}
+          r={LED_RING_RADIUS}
+          class="led-ring"
+          stroke={ledColor}
+          stroke-width={LED_RING_WIDTH}
+          fill="none"
+          style="filter: drop-shadow(0 0 8px {ledColor}); opacity: 0.8;"
         />
 
-        <!-- Button Rectangle -->
+        <!-- Button Rectangle with 3D effect -->
         <rect
           x={pos.x}
           y={pos.y}
@@ -212,12 +288,24 @@
           class="button-rect"
           class:selected
           class:multi-command={multiCmd}
+          filter="url(#buttonShadow)"
+        />
+
+        <!-- Inner button highlight for 3D effect -->
+        <rect
+          x={pos.x + 4}
+          y={pos.y + 4}
+          width={BUTTON_SIZE - 8}
+          height={BUTTON_SIZE - 8}
+          rx={BUTTON_RADIUS - 2}
+          ry={BUTTON_RADIUS - 2}
+          class="button-highlight"
         />
 
         <!-- Button Label -->
         <text
-          x={pos.x + BUTTON_SIZE / 2}
-          y={pos.y + BUTTON_SIZE / 2}
+          x={centerX}
+          y={centerY}
           class="button-label"
           text-anchor="middle"
           dominant-baseline="middle"
@@ -295,6 +383,39 @@
         {/if}
       </g>
     {/each}
+
+    <!-- Encoder and Expression Indicators (between rows for STD10) -->
+    {#if deviceType === 'std10'}
+      {@const midY = HEADER_HEIGHT + 40 + BUTTON_SIZE + 20}
+      {@const encoderX = maxWidth / 2 - 60}
+      {@const exp1X = maxWidth / 2 + 40}
+      
+      <!-- Encoder -->
+      <g class="control-indicator">
+        <circle cx={encoderX} cy={midY} r="20" class="encoder-circle" />
+        <circle cx={encoderX} cy={midY} r="12" class="encoder-inner" />
+        <line x1={encoderX} y1={midY - 12} x2={encoderX} y2={midY - 8} class="encoder-marker" stroke="#8b5cf6" stroke-width="2" />
+        <text x={encoderX} y={midY + 35} class="control-label" text-anchor="middle">ENCODER</text>
+      </g>
+      
+      <!-- Expression Pedals -->
+      <g class="control-indicator">
+        <rect x={exp1X - 15} y={midY - 18} width="30" height="36" rx="3" class="exp-rect" />
+        <line x1={exp1X - 10} y1={midY + 8} x2={exp1X + 10} y2={midY - 8} class="exp-line" stroke="#10b981" stroke-width="2" />
+        <text x={exp1X} y={midY + 35} class="control-label" text-anchor="middle">EXP 1/2</text>
+      </g>
+    {:else}
+      <!-- Mini6 - centered encoder indicator -->
+      {@const midY = HEADER_HEIGHT + 40 + BUTTON_SIZE + 20}
+      {@const encoderX = maxWidth / 2}
+      
+      <g class="control-indicator">
+        <circle cx={encoderX} cy={midY} r="20" class="encoder-circle" />
+        <circle cx={encoderX} cy={midY} r="12" class="encoder-inner" />
+        <line x1={encoderX} y1={midY - 12} x2={encoderX} y2={midY - 8} class="encoder-marker" stroke="#8b5cf6" stroke-width="2" />
+        <text x={encoderX} y={midY + 35} class="control-label" text-anchor="middle">ENCODER</text>
+      </g>
+    {/if}
   </svg>
 </div>
 
@@ -306,22 +427,56 @@
     justify-content: center;
     align-items: center;
     padding: 24px;
-    background: #111827;
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
   }
 
   .device-svg {
     width: 100%;
     height: auto;
+    border-radius: 8px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
   }
 
+  /* Device Header Styles */
+  .brand-text {
+    fill: #8b5cf6;
+    font-size: 20px;
+    font-weight: 900;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    filter: url(#glow);
+  }
+
+  .device-name-text {
+    fill: #e5e7eb;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  /* Port Labels */
+  .port-label {
+    fill: #6b7280;
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  /* Button Styles */
   .button-group {
     cursor: pointer;
     transition: all 0.2s ease;
   }
 
   .button-group:hover .button-rect {
-    fill: #374151;
-    stroke: #6b7280;
+    fill: #2d3748;
+  }
+
+  .button-group:hover .led-ring {
+    opacity: 1 !important;
+    stroke-width: 5;
   }
 
   .button-group:focus {
@@ -334,8 +489,8 @@
   }
 
   .button-rect {
-    fill: #1f2937;
-    stroke: #4b5563;
+    fill: #1a202c;
+    stroke: #2d3748;
     stroke-width: 2;
     transition: all 0.2s ease;
   }
@@ -346,6 +501,15 @@
     stroke-width: 3;
   }
 
+  .button-highlight {
+    fill: rgba(255, 255, 255, 0.05);
+    pointer-events: none;
+  }
+
+  .button-group.selected .button-highlight {
+    fill: rgba(139, 92, 246, 0.15);
+  }
+
   .button-label {
     fill: #ffffff;
     font-size: 14px;
@@ -354,10 +518,18 @@
     user-select: none;
   }
 
-  .led {
-    transition: fill 0.2s ease;
+  /* LED Ring Styles */
+  .led-ring {
+    transition: all 0.3s ease;
+    stroke-linecap: round;
   }
 
+  .button-group.selected .led-ring {
+    stroke-width: 6;
+    opacity: 1 !important;
+  }
+
+  /* Badge Styles */
   .badge-group {
     pointer-events: none;
   }
@@ -395,6 +567,45 @@
     fill: #ffffff;
     font-size: 14px;
     font-weight: 900;
+  }
+
+  /* Control Indicators (Encoder, Expression) */
+  .control-indicator {
+    opacity: 0.6;
+  }
+
+  .encoder-circle {
+    fill: #1a202c;
+    stroke: #4a5568;
+    stroke-width: 2;
+  }
+
+  .encoder-inner {
+    fill: #2d3748;
+    stroke: #8b5cf6;
+    stroke-width: 1;
+  }
+
+  .encoder-marker {
+    stroke-linecap: round;
+  }
+
+  .exp-rect {
+    fill: #1a202c;
+    stroke: #4a5568;
+    stroke-width: 2;
+  }
+
+  .exp-line {
+    stroke-linecap: round;
+  }
+
+  .control-label {
+    fill: #6b7280;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
   }
 
   /* Keyboard accessibility */
