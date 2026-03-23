@@ -48,7 +48,6 @@
 
   // Event listener cleanup
   let unlistenMidi: UnlistenFn | null = null;
-  let cleanupMidiOut: (() => void) | null = null;
 
   // Parse MIDI message type with length validation
   function parseMidiMessage(data: number[]): Omit<MidiMessage, 'id' | 'timestamp' | 'direction' | 'port' | 'raw'> {
@@ -216,18 +215,19 @@
   }
 
   // Initialize MIDI monitoring
-  onMount(async () => {
-    // Load MIDI ports
-    try {
-      const ports = await listMidiPorts();
+  onMount(() => {
+    // Load MIDI ports asynchronously (don't await)
+    listMidiPorts().then(ports => {
       midiPorts.set(ports);
-    } catch (e) {
+    }).catch(e => {
       console.error('[MIDI Monitor] Failed to list ports:', e);
-    }
+    });
 
     // Subscribe to MIDI events (don't start/stop listener - that's managed by main app)
-    unlistenMidi = await onMidiEvent((evt) => {
+    onMidiEvent((evt) => {
       addMessage('in', evt.data, evt.port);
+    }).then(unlisten => {
+      unlistenMidi = unlisten;
     });
 
     // Subscribe to outgoing MIDI messages (frontend custom event)
@@ -237,20 +237,16 @@
     };
     window.addEventListener('midi-out-event', handleMidiOut);
 
-    // Store cleanup function for onDestroy
-    cleanupMidiOut = () => {
+    // Return cleanup function synchronously
+    return () => {
       window.removeEventListener('midi-out-event', handleMidiOut);
     };
   });
 
   onDestroy(() => {
-    // Only unsubscribe from events, don't stop the global listener
+    // Unsubscribe from Tauri MIDI events
     if (unlistenMidi) {
       unlistenMidi();
-    }
-    // Clean up frontend event listener
-    if (cleanupMidiOut) {
-      cleanupMidiOut();
     }
   });
 
