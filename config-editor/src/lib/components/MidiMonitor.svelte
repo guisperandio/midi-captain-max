@@ -17,11 +17,25 @@
     port: string;
   }
 
-  // Component state
-  let messages: MidiMessage[] = $state([]);
+  // Component state - Ring buffer for O(1) insertions
+  const maxMessages = 1000;
+  let messageBuffer: (MidiMessage | null)[] = $state(new Array(maxMessages).fill(null));
+  let bufferHead = $state(0);  // Next write position
+  let bufferCount = $state(0); // Number of messages in buffer
   let messageId = 0;
   let isPaused = $state(false);
-  let maxMessages = 1000;
+  
+  // Derived: Convert ring buffer to array for display (newest first)
+  let messages = $derived.by(() => {
+    if (bufferCount === 0) return [];
+    const result: MidiMessage[] = [];
+    for (let i = 0; i < bufferCount; i++) {
+      const idx = (bufferHead - 1 - i + maxMessages) % maxMessages;
+      const msg = messageBuffer[idx];
+      if (msg) result.push(msg);
+    }
+    return result;
+  });
   
   // Filters
   let filterType = $state<string>('all');
@@ -86,7 +100,7 @@
     }
   }
 
-  // Add message to log
+  // Add message to log - O(1) ring buffer insertion
   function addMessage(direction: 'in' | 'out', data: number[], port: string) {
     if (isPaused) return;
 
@@ -100,12 +114,12 @@
       ...parsed
     };
 
-    // Efficient circular buffer: prepend and trim if needed
-    messages.unshift(message);
-    if (messages.length > maxMessages) {
-      messages.pop();
+    // Write to ring buffer at head position (O(1))
+    messageBuffer[bufferHead] = message;
+    bufferHead = (bufferHead + 1) % maxMessages;
+    if (bufferCount < maxMessages) {
+      bufferCount++;
     }
-    messages = messages; // Trigger reactivity
 
     // Auto-scroll to top (newest messages)
     if (autoScroll && logContainer) {
@@ -176,7 +190,9 @@
 
   // Actions
   function clearLog() {
-    messages = [];
+    messageBuffer = new Array(maxMessages).fill(null);
+    bufferHead = 0;
+    bufferCount = 0;
     messageId = 0;
   }
 
