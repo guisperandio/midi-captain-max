@@ -34,6 +34,7 @@
 
   // Event listener cleanup
   let unlistenMidi: UnlistenFn | null = null;
+  let cleanupMidiOut: (() => void) | null = null;
 
   // Parse MIDI message type with length validation
   function parseMidiMessage(data: number[]): Omit<MidiMessage, 'id' | 'timestamp' | 'direction' | 'port' | 'raw'> {
@@ -99,7 +100,12 @@
       ...parsed
     };
 
-    messages = [message, ...messages].slice(0, maxMessages);
+    // Efficient circular buffer: prepend and trim if needed
+    messages.unshift(message);
+    if (messages.length > maxMessages) {
+      messages.pop();
+    }
+    messages = messages; // Trigger reactivity
 
     // Auto-scroll to top (newest messages)
     if (autoScroll && logContainer) {
@@ -215,8 +221,8 @@
     };
     window.addEventListener('midi-out-event', handleMidiOut);
 
-    // Cleanup outgoing event listener
-    return () => {
+    // Store cleanup function for onDestroy
+    cleanupMidiOut = () => {
       window.removeEventListener('midi-out-event', handleMidiOut);
     };
   });
@@ -225,6 +231,10 @@
     // Only unsubscribe from events, don't stop the global listener
     if (unlistenMidi) {
       unlistenMidi();
+    }
+    // Clean up frontend event listener
+    if (cleanupMidiOut) {
+      cleanupMidiOut();
     }
   });
 
