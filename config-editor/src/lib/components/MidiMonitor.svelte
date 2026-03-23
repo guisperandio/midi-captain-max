@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { onMidiEvent, listMidiPorts, startMidiInputListener, stopMidiInputListener } from '$lib/api';
+  import { onMidiEvent, listMidiPorts } from '$lib/api';
   import { midiPorts, selectedMidiPort } from '$lib/stores';
   import type { UnlistenFn } from '@tauri-apps/api/event';
 
@@ -228,29 +228,16 @@
     }
   });
 
-  // Handle port change
-  async function handlePortChange(e: Event) {
+  // Handle port change - only update store, DeviceGrid manages listener lifecycle
+  function handlePortChange(e: Event) {
     const select = e.target as HTMLSelectElement;
     const port = select.value;
     
-    // If placeholder (empty) option is selected, clear selection and stop listening
+    // Update store - DeviceGrid's $effect will handle listener start/stop
     if (!port) {
       selectedMidiPort.set(null);
-      try {
-        await stopMidiInputListener();
-      } catch (e) {
-        console.error('[MIDI Monitor] Failed to stop listener:', e);
-      }
-      return;
-    }
-
-    // Switch to the newly selected port
-    selectedMidiPort.set(port);
-    try {
-      await stopMidiInputListener();
-      await startMidiInputListener(port);
-    } catch (e) {
-      console.error('[MIDI Monitor] Failed to switch port:', e);
+    } else {
+      selectedMidiPort.set(port);
     }
   }
 </script>
