@@ -32,7 +32,18 @@
   let isResizing = $state(false);
   let reloadDevicePath = $state<string | null>(null); // Track device during reload cycle
   let midiMonitorOpen = $state(false);
+  const MIDI_MONITOR_MIN_HEIGHT = 150;
+  const MIDI_MONITOR_MAX_HEIGHT = 600;
   let midiMonitorHeight = $state(300);
+
+  // Clamp monitor height to valid range
+  $effect(() => {
+    if (midiMonitorHeight < MIDI_MONITOR_MIN_HEIGHT) {
+      midiMonitorHeight = MIDI_MONITOR_MIN_HEIGHT;
+    } else if (midiMonitorHeight > MIDI_MONITOR_MAX_HEIGHT) {
+      midiMonitorHeight = MIDI_MONITOR_MAX_HEIGHT;
+    }
+  });
 
   let devMode = $derived($config.dev_mode ?? false);
   let hasErrors = $derived($validationErrors.length > 0);

@@ -61,7 +61,17 @@ export async function listMidiPorts(): Promise<string[]> {
 }
 
 export async function sendMidiMessage(portName: string, data: number[]): Promise<void> {
-  return invoke('send_midi_message_cmd', { portName, data });
+  const result = await invoke('send_midi_message_cmd', { portName, data });
+  
+  // Emit 'midi-out-event' for monitoring OUT messages
+  // Note: This is a frontend-only event, not from backend
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('midi-out-event', {
+      detail: { timestamp: Date.now(), data, port: portName }
+    }));
+  }
+  
+  return result;
 }
 
 export async function startMidiInputListener(portName: string): Promise<void> {

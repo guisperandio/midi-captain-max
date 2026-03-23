@@ -35,7 +35,7 @@
   // Event listener cleanup
   let unlistenMidi: UnlistenFn | null = null;
 
-  // Parse MIDI message type
+  // Parse MIDI message type with length validation
   function parseMidiMessage(data: number[]): Omit<MidiMessage, 'id' | 'timestamp' | 'direction' | 'port' | 'raw'> {
     if (data.length === 0) return { type: 'Other' };
 
@@ -45,6 +45,7 @@
 
     switch (statusType) {
       case 0xb0: // Control Change
+        if (data.length < 3) return { type: 'Other' }; // Require 3 bytes
         return {
           type: 'CC',
           channel,
@@ -52,6 +53,7 @@
           data2: data[2]  // Value
         };
       case 0x90: // Note On
+        if (data.length < 3) return { type: 'Other' }; // Require 3 bytes
         return {
           type: data[2] > 0 ? 'Note On' : 'Note Off',
           channel,
@@ -59,6 +61,7 @@
           data2: data[2]  // Velocity
         };
       case 0x80: // Note Off
+        if (data.length < 3) return { type: 'Other' }; // Require 3 bytes
         return {
           type: 'Note Off',
           channel,
@@ -66,6 +69,7 @@
           data2: data[2]  // Velocity
         };
       case 0xc0: // Program Change
+        if (data.length < 2) return { type: 'Other' }; // Require 2 bytes
         return {
           type: 'PC',
           channel,
@@ -199,30 +203,28 @@
       console.error('[MIDI Monitor] Failed to list ports:', e);
     }
 
-    // Subscribe to MIDI events
+    // Subscribe to MIDI events (don't start/stop listener - that's managed by main app)
     unlistenMidi = await onMidiEvent((evt) => {
       addMessage('in', evt.data, evt.port);
     });
 
-    // Start listening on selected port if available
-    const port = $selectedMidiPort;
-    if (port) {
-      try {
-        await startMidiInputListener(port);
-      } catch (e) {
-        console.error('[MIDI Monitor] Failed to start listener:', e);
-      }
-    }
+    // Subscribe to outgoing MIDI messages (frontend custom event)
+    const handleMidiOut = (e: Event) => {
+      const evt = (e as CustomEvent).detail;
+      addMessage('out', evt.data, evt.port);
+    };
+    window.addEventListener('midi-out-event', handleMidiOut);
+
+    // Cleanup outgoing event listener
+    return () => {
+      window.removeEventListener('midi-out-event', handleMidiOut);
+    };
   });
 
-  onDestroy(async () => {
+  onDestroy(() => {
+    // Only unsubscribe from events, don't stop the global listener
     if (unlistenMidi) {
       unlistenMidi();
-    }
-    try {
-      await stopMidiInputListener();
-    } catch (e) {
-      // Ignore errors on cleanup
     }
   });
 
@@ -231,14 +233,24 @@
     const select = e.target as HTMLSelectElement;
     const port = select.value;
     
-    if (port) {
-      selectedMidiPort.set(port);
+    // If placeholder (empty) option is selected, clear selection and stop listening
+    if (!port) {
+      selectedMidiPort.set(null);
       try {
         await stopMidiInputListener();
-        await startMidiInputListener(port);
       } catch (e) {
-        console.error('[MIDI Monitor] Failed to switch port:', e);
+        console.error('[MIDI Monitor] Failed to stop listener:', e);
       }
+      return;
+    }
+
+    // Switch to the newly selected port
+    selectedMidiPort.set(port);
+    try {
+      await stopMidiInputListener();
+      await startMidiInputListener(port);
+    } catch (e) {
+      console.error('[MIDI Monitor] Failed to switch port:', e);
     }
   }
 </script>
