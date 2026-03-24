@@ -133,6 +133,7 @@ Get the latest release from [Releases](https://github.com/guisperandio/midi-capt
 - 🎨 **Color picker** — Visual color selection
 - 🔍 **Device detection** — Automatically detects connected MIDI Captain
 - 🎯 **Device Profiles** — Quick setup with built-in MIDI mappings
+- 📊 **MIDI Monitor** — Real-time message debugging with filtering, export, and professional monitoring tools
 - ⏏️ **Safe eject** — Cleanly ejects device after saving (macOS/Linux)
 
 ## Device Profiles

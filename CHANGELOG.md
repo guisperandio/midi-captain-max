@@ -2,6 +2,36 @@
 
 All notable changes to this project will be documented in this file.
 
+## [MIDI Monitor Panel] - 2026-03-24
+
+### Added
+- **MIDI Monitor Panel** (Config Editor): Real-time MIDI message debugging and validation tool
+  - **Live message display**: Incoming and outgoing MIDI traffic with millisecond timestamps
+  - **Message type support**: CC, Note On/Off, PC, SysEx with colored type badges and indicators
+  - **Smart filtering**: Filter by message type, MIDI channel (1-16), and direction (IN/OUT)
+  - **Professional controls**:
+    - Port selector dropdown for multi-device setups
+    - Pause/Resume for message capture control
+    - Clear log to reset message buffer
+    - Export to timestamped .txt file for analysis
+    - Auto-scroll toggle (newest messages first)
+  - **Performance optimized**: O(1) ring buffer handles high-throughput MIDI (clock, dense CC) without UI jank
+  - **Cortex Control aesthetic**: Matches professional monitoring tools with 36px buttons, SF Mono typography
+  - **Accessibility**: ARIA labels for screen reader support
+
+### Technical Implementation
+- True ring buffer (1000 messages) with O(1) insertion using modulo arithmetic
+- Length validation for MIDI message parsing (prevents misclassification on partial packets)
+- Race condition protection with destroyed flag for async subscriptions
+- Proper event listener cleanup (synchronous onMount return)
+- Error handling for subscription failures with console logging
+- Delayed URL revocation (100ms) for reliable exports in WebViews
+
+### Fixed
+- Memory leak: Event listeners now properly cleaned up on component unmount
+- Channel filter type mismatch: String-to-number conversion for accurate filtering
+- Export reliability: Delayed blob URL revocation prevents download cancellation
+
 ## [Banks/Pages System] - 2026-03-20
 
 ### Added

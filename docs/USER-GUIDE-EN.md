@@ -18,9 +18,10 @@
 9. [Encoder Configuration](#encoder-configuration)
 10. [Expression Pedals](#expression-pedals)
 11. [Display Settings](#display-settings)
-12. [Keyboard Shortcuts](#keyboard-shortcuts)
-13. [Tips and Best Practices](#tips-and-best-practices)
-14. [Troubleshooting](#troubleshooting)
+12. [MIDI Monitor](#midi-monitor)
+13. [Keyboard Shortcuts](#keyboard-shortcuts)
+14. [Tips and Best Practices](#tips-and-best-practices)
+15. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -33,6 +34,7 @@ The **MIDI Captain MAX Config Editor** is a desktop application that allows you 
 - Use device profiles for popular gear (Quad Cortex, Helix, Kemper, etc.)
 - Configure encoders and expression pedals
 - Customize the device display
+- Debug MIDI traffic with the built-in MIDI Monitor
 - Work in development or performance mode
 
 ---
@@ -719,6 +721,227 @@ Expression pedal value display
 - Large: Bold (60px)
 
 **Note**: Very large text may overflow display for long labels. Use Medium for balanced appearance.
+
+---
+
+## MIDI Monitor
+
+The **MIDI Monitor** is a professional debugging tool built into the config editor that displays real-time MIDI traffic between your device and other MIDI equipment.
+
+### Opening the Monitor
+
+1. Click the **MIDI Monitor** button in the toolbar (bottom toolbar)
+2. The monitor panel opens at the bottom of the editor
+3. Click again to close the panel
+
+### Interface Overview
+
+**Header Controls**
+- **Port Selector**: Choose which MIDI port to monitor
+- **Pause/Resume**: Pause message capture while keeping the monitor open
+- **Clear**: Delete all captured messages
+- **Export**: Save message log to a timestamped .txt file
+- **Auto-scroll**: Toggle automatic scrolling to newest messages (enabled by default)
+
+**Filter Bar**
+- **Type**: Filter by message type (CC, Note On, Note Off, PC, SysEx, or All)
+- **Channel**: Filter by MIDI channel 1-16 (or All channels)
+- **Direction**: Filter by IN (incoming), OUT (outgoing), or All
+
+**Message Display**
+- Each message shows: timestamp, direction, channel, message type, and data
+- **Color-coded type badges**: 
+  - ● CC (Control Change)
+  - ▲ Note On
+  - ▼ Note Off
+  - ■ PC (Program Change)
+  - ◆ SysEx (System Exclusive)
+  - ○ Other
+- Messages are displayed newest-first (most recent at top)
+- Badge shows filtered count / total count (e.g., "24 / 150")
+
+### Common Use Cases
+
+**1. Debugging Button Configuration**
+
+When setting up a button, use the monitor to verify:
+- **Correct CC numbers** are sent
+- **Channel** matches your target device
+- **Values** (0-127) are as expected
+- **Multi-command sequences** execute in order
+
+**Example workflow:**
+1. Open MIDI Monitor
+2. Press button on device
+3. Verify message appears with correct parameters
+4. If wrong, adjust button config and test again
+
+**2. Learning MIDI from External Devices**
+
+To map buttons to match an external device's MIDI output:
+1. Select the **external device's MIDI output** in port selector
+2. Set filter to **IN** (incoming) direction
+3. Trigger the action on the external device (change preset, enable effect, etc.)
+4. **Note the CC#, channel, and values** in the monitor
+5. Configure your MIDI Captain button to send the same message
+
+**Example:** To learn what MIDI your Helix sends for "Snapshot 3":
+- Monitor: `12:34:56.789 IN Ch1 CC 69 = 2`
+- Configure button: CC 69, Value 2, Channel 1
+
+**3. Verifying Bidirectional Sync**
+
+Test if your host software is sending MIDI back to the controller:
+1. Set filter to **IN** direction
+2. Change a parameter in your DAW/plugin host
+3. If bidirectional MIDI is working, you'll see incoming CC/PC messages
+4. Verify the CC# and channel match your button configuration
+
+**4. Testing Multi-Command Actions**
+
+When a button sends multiple MIDI commands:
+1. Clear the log before testing
+2. Press the button once
+3. Count the number of messages (should match configured commands)
+4. Verify order of execution
+
+**5. Expression Pedal Calibration**
+
+Check expression pedal MIDI output:
+1. Filter by **CC** type and the pedal's assigned CC number
+2. Move pedal through full range
+3. Verify Min value at heel position
+4. Verify Max value at toe position
+5. Watch for jitter or unexpected jumps (increase threshold if needed)
+
+### Message Format Examples
+
+**Control Change:**
+```
+12:34:56.123 OUT Ch1 CC20 = 127
+```
+- Timestamp: 12:34:56 with 123ms precision
+- Direction: OUT (sent by MIDI Captain)
+- Channel: 1
+- Type: Control Change #20
+- Value: 127
+
+**Note On:**
+```
+12:34:57.456 IN Ch10 Note 60 ON (vel 100)
+```
+- Direction: IN (received by MIDI Captain)
+- Channel: 10 (drum channel)
+- Note: 60 (Middle C)
+- Velocity: 100
+
+**Program Change:**
+```
+12:34:58.789 OUT Ch1 PC 5
+```
+- Program Change to program #5
+
+**SysEx:**
+```
+12:34:59.012 IN SysEx [24 bytes]
+```
+- System Exclusive message (manufacturer-specific)
+- Byte count shown in brackets
+
+### Filtering Strategies
+
+**Focus on Specific Button:**
+1. Set **Type** filter to the message type used by the button (e.g., CC)
+2. Filter by the button's **Channel**
+3. Note the specific CC# in the message
+4. Only messages matching both type and channel will appear
+
+**Monitor MIDI Clock:**
+- MIDI Clock is a specific type of message (not CC/Note/PC)
+- Disable all filters to see clock messages
+- Or filter **Type: Other** to exclude standard messages
+
+**Capture Only Outgoing:**
+- Set **Direction: OUT**
+- Shows only messages sent by MIDI Captain
+- Useful for verifying button presses work
+
+**Watch Host Feedback:**
+- Set **Direction: IN**
+- Shows only messages received from host/DAW
+- Useful for debugging bidirectional sync
+
+### Export and Analysis
+
+**Export Format:**
+
+Clicking **Export** saves messages to a text file:
+```
+Filename: midi-log-1711238794123.txt
+
+12:34:56.123 OUT Ch1 CC20 = 127
+12:34:56.456 OUT Ch1 CC21 = 64
+12:34:57.789 IN Ch1 CC20 = 127
+```
+
+**Use Cases:**
+- Share logs when reporting issues
+- Compare expected vs actual MIDI output
+- Document MIDI implementation for complex setups
+- Archive working configurations
+
+### Performance Notes
+
+**Buffer Size:**
+- The monitor stores up to **1000 messages**
+- Oldest messages are automatically removed when buffer is full
+- For very high-throughput streams (MIDI clock), consider pausing periodically
+
+**High-Throughput MIDI:**
+
+The monitor uses an optimized ring buffer that can handle:
+- MIDI Clock (24 messages per quarter note)
+- Dense CC streams (rapid knob movements)
+- Multiple simultaneous devices
+
+**If experiencing lag:**
+1. Use filters to reduce message count
+2. Close other applications using MIDI
+3. Pause monitoring when not actively debugging
+
+### Tips
+
+- **Leave monitor open during configuration** to see immediate feedback
+- **Use Clear frequently** to focus on latest messages
+- **Pause before inspecting** a specific message in detail
+- **Export before closing** if you need to reference messages later
+- **Filter aggressively** for complex MIDI setups with many devices
+- **Check direction** — IN vs OUT helps isolate source of unexpected behavior
+
+### Troubleshooting
+
+**No Messages Appearing:**
+1. Verify **port is selected** in dropdown
+2. Check **device is connected** and powered
+3. Ensure **MIDI cable** is connected (if using 5-pin DIN)
+4. Try **pressing a configured button** to test OUT messages
+5. Verify **USB MIDI** is working (check system MIDI settings)
+
+**Messages from Wrong Device:**
+1. Check **port selector** dropdown
+2. Some MIDI interfaces create multiple virtual ports
+3. Select the specific port for your device
+
+**Filter Not Working:**
+1. Messages are filtered client-side (all messages still captured)
+2. Check **filter badge** shows filtered/total count
+3. Try **Clear** and test again
+4. Channel must be **exact match** (e.g., "1" ≠ "All")
+
+**Export File Empty:**
+1. Ensure **messages were captured** before export
+2. Check **Downloads folder** for .txt file
+3. Try **Clear, capture messages, then Export**
 
 ---
 
