@@ -243,6 +243,24 @@ You can also edit `config.json` directly on the device. The firmware uses an **e
         {"cc": 20, "value": 96, "color": "cyan", "label": "75%"},
         {"cc": 20, "value": 127, "color": "white", "label": "100%"}
       ]
+    },
+    {
+      "label": "SMART",
+      "color": "purple",
+      "mode": "momentary",
+      "press": [
+        {
+          "type": "conditional",
+          "if": {"type": "button_state", "button": 0, "state": "on"},
+          "then": [
+            {"type": "cc", "cc": 30, "value": 127},
+            {"type": "pc", "program": 10}
+          ],
+          "else": [
+            {"type": "cc", "cc": 30, "value": 64}
+          ]
+        }
+      ]
     }
   ],
   "encoder": {
@@ -291,6 +309,7 @@ This example demonstrates:
 - **Default selected** button activated on boot (Button 3: CLEAN)
 - **Per-command channels** controlling multiple devices (Button 5: TAP)
 - **Keytimes** with per-state overrides (Button 6: VERB cycling 3 reverb levels)
+- **Conditional actions** with if/then/else logic based on other button states (Button 7: SMART)
 - **Encoder** configuration with push button
 - **Expression pedal** setup
 - **Display** text size settings
@@ -429,6 +448,128 @@ Each button action can send **multiple MIDI commands in sequence**. This enables
   ]
 }
 ```
+
+### Conditional Actions
+
+Buttons can execute different commands based on **runtime conditions** like other button states, received MIDI values, expression pedal position, or encoder value. This enables intelligent, context-aware behavior.
+
+#### Basic IF/THEN/ELSE Structure
+
+```json
+{
+  "label": "SMART",
+  "color": "purple",
+  "press": [
+    {
+      "type": "conditional",
+      "if": {"type": "button_state", "button": 0, "state": "on"},
+      "then": [
+        {"type": "cc", "cc": 30, "value": 127},
+        {"type": "pc", "program": 10}
+      ],
+      "else": [
+        {"type": "cc", "cc": 30, "value": 64}
+      ]
+    }
+  ]
+}
+```
+
+**Logic**: If Button 0 is ON, send CC30=127 + PC10; otherwise send CC30=64.
+
+#### Condition Types
+
+**1. Button State**
+Check if another button is on or off:
+```json
+{"type": "button_state", "button": 2, "state": "on"}
+```
+
+**2. Button Keytime**
+Check the current keytime state of a multi-state button:
+```json
+{"type": "button_keytime", "button": 3, "keytime": 1}
+```
+*Note: keytime is 0-indexed (0 = first state)*
+
+**3. Received MIDI CC**
+Check value of incoming CC messages:
+```json
+{"type": "received_midi", "channel": 0, "cc": 20, "operator": "gte", "value": 64}
+```
+**Operators**: `eq`, `ne`, `gt`, `lt`, `gte`, `lte`
+
+**4. Expression Pedal Position**
+Check expression pedal value:
+```json
+{"type": "expression", "pedal": "exp1", "operator": "gt", "value": 100}
+```
+
+**5. Encoder Position**
+Check rotary encoder value:
+```json
+{"type": "encoder", "operator": "gte", "value": 64}
+```
+
+#### Real-World Examples
+
+**Scene-Aware Boost Button:**
+```json
+{
+  "label": "BOOST",
+  "color": "yellow",
+  "press": [
+    {
+      "type": "conditional",
+      "if": {"type": "button_state", "button": 0, "state": "on"},
+      "then": [{"type": "cc", "cc": 50, "value": 127}],
+      "else": [{"type": "cc", "cc": 51, "value": 127}]
+    }
+  ]
+}
+```
+*If clean channel (button 0) is active, use boost CC50; if drive channel, use boost CC51.*
+
+**Expression-Based Scene Switch:**
+```json
+{
+  "label": "AUTO",
+  "color": "blue",
+  "press": [
+    {
+      "type": "conditional",
+      "if": {"type": "expression", "pedal": "exp1", "operator": "lt", "value": 30},
+      "then": [{"type": "pc", "program": 0}],
+      "else": [{"type": "pc", "program": 1}]
+    }
+  ]
+}
+```
+*Load scene 0 if expression pedal is at heel, scene 1 if at toe.*
+
+**Host-Responsive Button:**
+```json
+{
+  "label": "SYNC",
+  "color": "green",
+  "press": [
+    {
+      "type": "conditional",
+      "if": {"type": "received_midi", "channel": 0, "cc": 100, "operator": "eq", "value": 127},
+      "then": [{"type": "cc", "cc": 25, "value": 127}],
+      "else": [{"type": "cc", "cc": 25, "value": 0}]
+    }
+  ]
+}
+```
+*Button behavior changes based on what the host last sent (bidirectional sync).*
+
+#### Notes
+
+- Conditionals can be mixed with regular MIDI commands in the same action array
+- Supports nested logic: THEN/ELSE branches can contain multiple commands
+- All operators work with MIDI value range (0-127)
+- Conditions are evaluated at button press time using current device state
 
 #### Example: Long-Press for Secondary Function
 
