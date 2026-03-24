@@ -1,7 +1,8 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { get } from 'svelte/store';
-  import { message } from '@tauri-apps/plugin-dialog';
+  import { message, save, open as openDialog } from '@tauri-apps/plugin-dialog';
+  import { writeTextFile, readTextFile } from '@tauri-apps/plugin-fs';
   import { getVersion } from '@tauri-apps/api/app';
   import { Toast } from '@skeletonlabs/skeleton-svelte';
   import {
@@ -169,6 +170,12 @@
           e.preventDefault();
           if (e.shiftKey && $canRedo) redo();
           else if ($canUndo) undo();
+        } else if (isCmd && e.key === 'e') {
+          e.preventDefault();
+          await exportConfig();
+        } else if (isCmd && e.key === 'i') {
+          e.preventDefault();
+          await importConfig();
         }
       };
       document.addEventListener('keydown', handleKeydown);
@@ -183,9 +190,7 @@
     // Clean up keyboard event listener
     const handleKeydown = (e: KeyboardEvent) => {
       const isCmd = e.metaKey || e.ctrlKey;
-      if (isCmd && e.key === 's') {
-        e.preventDefault();
-      } else if (isCmd && e.key === 'z') {
+      if (isCmd && (e.key === 's' || e.key === 'z' || e.key === 'e' || e.key === 'i')) {
         e.preventDefault();
       }
     };
@@ -287,6 +292,114 @@
     }
   }
 
+  async function exportConfig() {
+    try {
+      // Get current config
+      const currentConfig = get(config);
+      const normalized = normalizeConfig(currentConfig);
+      const json = JSON.stringify(normalized, null, 2);
+
+      // Get device name for default filename
+      const deviceName = currentConfig.device || 'midi-captain';
+      const timestamp = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+      const defaultFilename = `${deviceName}-config-${timestamp}.json`;
+
+      // Show save dialog
+      const filePath = await save({
+        defaultPath: defaultFilename,
+        filters: [{
+          name: 'JSON Configuration',
+          extensions: ['json']
+        }]
+      });
+
+      if (!filePath) {
+        // User cancelled
+        return;
+      }
+
+      // Write file using Tauri fs plugin
+      await writeTextFile(filePath, json);
+
+      showToast(`Configuration exported successfully`, 'success');
+      statusMessage.set(`Exported to ${filePath}`);
+    } catch (error: any) {
+      console.error('[EXPORT] Error:', error);
+      await message(`Failed to export configuration: ${error.message || error}`, {
+        title: 'Export Error',
+        kind: 'error'
+      });
+      statusMessage.set(`Export failed: ${error.message || error}`);
+    }
+  }
+
+  async function importConfig() {
+    try {
+      // Show open dialog
+      const selected = await openDialog({
+        multiple: false,
+        filters: [{
+          name: 'JSON Configuration',
+          extensions: ['json']
+        }]
+      });
+
+      if (!selected) {
+        // User cancelled
+        return;
+      }
+
+      // Read file using Tauri fs plugin
+      const json = await readTextFile(selected as string);
+
+      // Validate JSON
+      let importedConfig;
+      try {
+        importedConfig = JSON.parse(json);
+      } catch (e: any) {
+        throw new Error(`Invalid JSON: ${e.message}`);
+      }
+
+      // Check if we should overwrite
+      if ($isDirty) {
+        const confirmed = await message(
+          'You have unsaved changes. Import will overwrite them. Continue?',
+          {
+            title: 'Confirm Import',
+            kind: 'warning'
+          }
+        );
+
+        if (!confirmed) {
+          return;
+        }
+      }
+
+      // Load the imported config (this will also validate it via the load process)
+      loadConfig(importedConfig);
+      currentConfigRaw.set(json);
+      hasUnsavedChanges.set(true);  // Mark as changed so user knows to save
+
+      // Validate the loaded config
+      const validationResult = validate();
+      if (!validationResult.isValid) {
+        const errorMessages = Array.from(validationResult.errors.values()).slice(0, 5).join('\n');
+        throw new Error(`Configuration has validation errors:\n${errorMessages}`);
+      }
+
+      const filename = (selected as string).split('/').pop() || 'file';
+      showToast(`Configuration imported successfully`, 'success');
+      statusMessage.set(`Imported from ${filename} - remember to save to device`);
+    } catch (error: any) {
+      console.error('[IMPORT] Error:', error);
+      await message(`Failed to import configuration: ${error.message || error}`, {
+        title: 'Import Error',
+        kind: 'error'
+      });
+      statusMessage.set(`Import failed: ${error.message || error}`);
+    }
+  }
+
   function viewJson() {
     jsonText = JSON.stringify($config, null, 2);
     showJsonModal = true;
@@ -329,16 +442,21 @@
     <div class="toolbar-left">
       <button class="tool-btn" onclick={() => undo()} disabled={!$canUndo}>Undo</button>
       <button class="tool-btn" onclick={() => redo()} disabled={!$canRedo}>Redo</button>
-      <div class="dev-mode-row">
+      <div class="dev-mode-row" title="Development mode: USB drive mounts on every boot (not recommended for live use)">
         <input type="checkbox" id="dev-mode" class="dev-cb" checked={devMode}
           onchange={(e) => updateField('dev_mode', (e.target as HTMLInputElement).checked)} />
-        <label for="dev-mode" class="dev-label">Development mode</label>
-        <span class="dev-hint">for iterative testing: USB drive mounts always on device boot. (Not recommendded for live use.)</span>
+        <label for="dev-mode" class="dev-label">Dev Mode</label>
       </div>
     </div>
     <div class="toolbar-right">
       <button class="tool-btn" class:active={midiMonitorOpen} aria-pressed={midiMonitorOpen} onclick={() => midiMonitorOpen = !midiMonitorOpen} title="Toggle MIDI Monitor">
         MIDI Monitor
+      </button>
+      <button class="tool-btn secondary" onclick={exportConfig} title="Export Configuration (⌘E)">
+        Export
+      </button>
+      <button class="tool-btn secondary" onclick={importConfig} title="Import Configuration (⌘I)">
+        Import
       </button>
       <button class="tool-btn secondary" onclick={viewJson}>View JSON</button>
       <button
@@ -506,8 +624,9 @@
     display: flex; align-items: center; justify-content: space-between;
     padding: 12px 24px; background: #0d0d0d;
     border-bottom: 1px solid var(--border-default); flex-shrink: 0; gap: 16px;
+    flex-wrap: wrap; min-height: 62px;
   }
-  .toolbar-left, .toolbar-right { display: flex; align-items: center; gap: 12px; }
+  .toolbar-left, .toolbar-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
   .tool-btn {
     display: inline-flex; align-items: center; gap: 6px;
     padding: 8px 16px; background: var(--bg-input); border: 1px solid var(--border-default);
@@ -522,10 +641,9 @@
   .tool-btn.secondary:hover:not(:disabled) { background: var(--bg-input); color: #e5e7eb; }
   .tool-btn.active { background: var(--accent-primary-dim); border-color: var(--accent-primary); color: var(--accent-primary); }
   .arrow { font-size: 11px; }
-  .dev-mode-row { display: flex; align-items: center; gap: 6px; margin-left: 4px; }
+  .dev-mode-row { display: flex; align-items: center; gap: 6px; margin-left: 4px; cursor: help; }
   .dev-cb { width: 15px; height: 15px; accent-color: var(--accent-primary); cursor: pointer; }
-  .dev-label { font-size: 13px; color: #d1d5db; cursor: pointer; user-select: none; }
-  .dev-hint { font-size: 11px; color: #6b7280; }
+  .dev-label { font-size: 13px; color: #d1d5db; cursor: pointer; user-select: none; white-space: nowrap; }
 
   /* Save button animations */
   .save-btn {

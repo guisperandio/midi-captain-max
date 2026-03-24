@@ -2,6 +2,37 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Export/Import Configuration] - 2026-03-24
+
+### Added
+- **Export/Import Configuration** (Config Editor): Professional backup and sharing workflow
+  - **Export Configuration**: Save current config to user-specified JSON file
+    - Auto-generated filename with device type and timestamp (e.g., `std10-config-2026-03-24.json`)
+    - Normalized config output (strips legacy fields, validates structure)
+    - Keyboard shortcut: ⌘E (macOS) / Ctrl+E (Windows/Linux)
+    - Success toast notification with file path
+  - **Import Configuration**: Load config from JSON file with validation
+    - JSON syntax validation with clear error messages
+    - Schema validation against current config structure
+    - Confirmation dialog when importing over unsaved changes
+    - Keyboard shortcut: ⌘I (macOS) / Ctrl+I (Windows/Linux)
+    - Status reminder to save to device after import
+  - **File format**: JSON (human-readable, future-proof, version-controlled)
+  - **Use cases**:
+    - Configuration backup before experimentation
+    - Transport configs between devices
+    - Share configurations with community
+    - Version control via Git integration
+    - Quick recovery from configuration mistakes
+
+### Technical Implementation
+- Tauri file picker dialogs via `@tauri-apps/plugin-dialog`
+- File I/O via `@tauri-apps/plugin-fs` (marked as Vite external for runtime resolution)
+- Config normalization pipeline removes legacy/redundant fields
+- Validation pipeline prevents invalid configs from being loaded
+- Toast notifications for success/error feedback
+- Safe error handling with user-friendly messages
+
 ## [MIDI Monitor Panel] - 2026-03-24
 
 ### Added
