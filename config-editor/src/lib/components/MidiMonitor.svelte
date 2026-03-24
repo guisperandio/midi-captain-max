@@ -48,6 +48,7 @@
 
   // Event listener cleanup
   let unlistenMidi: UnlistenFn | null = null;
+  let destroyed = false;
 
   // Parse MIDI message type with length validation
   function parseMidiMessage(data: number[]): Omit<MidiMessage, 'id' | 'timestamp' | 'direction' | 'port' | 'raw'> {
@@ -210,8 +211,14 @@
     const a = document.createElement('a');
     a.href = url;
     a.download = `midi-log-${Date.now()}.txt`;
+    document.body.appendChild(a);
     a.click();
-    URL.revokeObjectURL(url);
+    
+    // Delay revoke to prevent download cancellation in some browsers/WebViews
+    setTimeout(() => {
+      URL.revokeObjectURL(url);
+      a.remove();
+    }, 100);
   }
 
   // Initialize MIDI monitoring
@@ -227,7 +234,14 @@
     onMidiEvent((evt) => {
       addMessage('in', evt.data, evt.port);
     }).then(unlisten => {
-      unlistenMidi = unlisten;
+      // Handle race condition: if destroyed before promise resolves, cleanup immediately
+      if (destroyed) {
+        unlisten();
+      } else {
+        unlistenMidi = unlisten;
+      }
+    }).catch(e => {
+      console.error('[MIDI Monitor] Failed to subscribe to MIDI events:', e);
     });
 
     // Subscribe to outgoing MIDI messages (frontend custom event)
@@ -244,6 +258,7 @@
   });
 
   onDestroy(() => {
+    destroyed = true;
     // Unsubscribe from Tauri MIDI events
     if (unlistenMidi) {
       unlistenMidi();
@@ -334,10 +349,13 @@
 
     <div class="filter-group">
       <label>Channel:</label>
-      <select bind:value={filterChannel}>
+      <select value={filterChannel === 'all' ? 'all' : String(filterChannel)} onchange={(e) => {
+        const val = (e.target as HTMLSelectElement).value;
+        filterChannel = val === 'all' ? 'all' : parseInt(val, 10);
+      }}>
         <option value="all">All</option>
         {#each Array.from({ length: 16 }, (_, i) => i + 1) as ch}
-          <option value={ch}>{ch}</option>
+          <option value={String(ch)}>{ch}</option>
         {/each}
       </select>
     </div>

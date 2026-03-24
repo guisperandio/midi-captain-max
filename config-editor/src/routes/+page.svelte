@@ -337,7 +337,7 @@
       </div>
     </div>
     <div class="toolbar-right">
-      <button class="tool-btn" class:active={midiMonitorOpen} onclick={() => midiMonitorOpen = !midiMonitorOpen} title="Toggle MIDI Monitor">
+      <button class="tool-btn" class:active={midiMonitorOpen} aria-pressed={midiMonitorOpen} onclick={() => midiMonitorOpen = !midiMonitorOpen} title="Toggle MIDI Monitor">
         MIDI Monitor
       </button>
       <button class="tool-btn secondary" onclick={viewJson}>View JSON</button>
@@ -565,7 +565,6 @@
 
   /* Main */
   .main { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
-  .main.with-monitor { }
   .content-area { display: flex; flex: 1; overflow: hidden; min-height: 0; }
   .left-panel {
     position: relative;
