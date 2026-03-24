@@ -18,6 +18,7 @@
   import type { DetectedDevice } from '$lib/types';
   import LeftPanel from '$lib/components/LeftPanel.svelte';
   import ButtonSettingsPanel from '$lib/components/ButtonSettingsPanel.svelte';
+  import MidiMonitor from '$lib/components/MidiMonitor.svelte';
   import { loadConfig, validate, normalizeConfig, config, isDirty, canUndo, canRedo, undo, redo, updateField } from '$lib/formStore';
   import * as deviceService from '$lib/services/deviceService';
 
@@ -30,6 +31,7 @@
   let leftPanelWidth = $state(780);
   let isResizing = $state(false);
   let reloadDevicePath = $state<string | null>(null); // Track device during reload cycle
+  let midiMonitorOpen = $state(false);
 
   let devMode = $derived($config.dev_mode ?? false);
   let hasErrors = $derived($validationErrors.length > 0);
@@ -335,6 +337,9 @@
       </div>
     </div>
     <div class="toolbar-right">
+      <button class="tool-btn" class:active={midiMonitorOpen} aria-pressed={midiMonitorOpen} onclick={() => midiMonitorOpen = !midiMonitorOpen} title="Toggle MIDI Monitor">
+        MIDI Monitor
+      </button>
       <button class="tool-btn secondary" onclick={viewJson}>View JSON</button>
       <button
         class="tool-btn primary save-btn"
@@ -356,18 +361,19 @@
   </div>
 
   <!-- main content -->
-  <div class="main">
-    {#if ($selectedDevice || $currentConfigRaw) && !$isLoading}
-      <div class="left-panel" class:collapsed={leftPanelCollapsed} style="width: {leftPanelCollapsed ? '40px' : leftPanelWidth + 'px'}">
-        <button class="collapse-toggle" onclick={() => leftPanelCollapsed = !leftPanelCollapsed} title={leftPanelCollapsed ? 'Expand panel' : 'Collapse panel'}>
-          {leftPanelCollapsed ? '▶' : '◀'}
-        </button>
-        <LeftPanel />
-      </div>
-      {#if !leftPanelCollapsed}
-      <div class="resizer" onmousedown={startResize} class:resizing={isResizing}></div>
-      {/if}
-      <div class="right-panel"><ButtonSettingsPanel /></div>
+  <div class="main" class:with-monitor={midiMonitorOpen}>
+    <div class="content-area">
+      {#if ($selectedDevice || $currentConfigRaw) && !$isLoading}
+        <div class="left-panel" class:collapsed={leftPanelCollapsed} style="width: {leftPanelCollapsed ? '40px' : leftPanelWidth + 'px'}">
+          <button class="collapse-toggle" onclick={() => leftPanelCollapsed = !leftPanelCollapsed} title={leftPanelCollapsed ? 'Expand panel' : 'Collapse panel'}>
+            {leftPanelCollapsed ? '▶' : '◀'}
+          </button>
+          <LeftPanel />
+        </div>
+        {#if !leftPanelCollapsed}
+        <div class="resizer" onmousedown={startResize} class:resizing={isResizing}></div>
+        {/if}
+        <div class="right-panel"><ButtonSettingsPanel /></div>
     {:else if $isLoading}
       <div class="center-state">
         <div class="loading-container">
@@ -382,6 +388,14 @@
         <button class="tool-btn primary demo-btn" onclick={loadDemoConfig}>
           Load Demo Config (STD10)
         </button>
+      </div>
+      {/if}
+    </div>
+    
+    <!-- MIDI Monitor bottom panel -->
+    {#if midiMonitorOpen}
+      <div class="monitor-panel">
+        <MidiMonitor />
       </div>
     {/if}
   </div>
@@ -506,6 +520,7 @@
   .tool-btn.primary:hover:not(:disabled) { background: var(--accent-primary-hover); }
   .tool-btn.secondary { background: transparent; color: #9ca3af; }
   .tool-btn.secondary:hover:not(:disabled) { background: var(--bg-input); color: #e5e7eb; }
+  .tool-btn.active { background: var(--accent-primary-dim); border-color: var(--accent-primary); color: var(--accent-primary); }
   .arrow { font-size: 11px; }
   .dev-mode-row { display: flex; align-items: center; gap: 6px; margin-left: 4px; }
   .dev-cb { width: 15px; height: 15px; accent-color: var(--accent-primary); cursor: pointer; }
@@ -549,7 +564,8 @@
   }
 
   /* Main */
-  .main { display: flex; flex: 1; overflow: hidden; }
+  .main { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
+  .content-area { display: flex; flex: 1; overflow: hidden; min-height: 0; }
   .left-panel {
     position: relative;
     flex-shrink: 0;
@@ -621,6 +637,15 @@
     flex: 1;
     overflow-y: auto;
     background: var(--bg-dark);
+  }
+
+  /* MIDI Monitor Panel */
+  .monitor-panel {
+    height: 300px;
+    flex-shrink: 0;
+    border-top: 1px solid var(--border-default);
+    background: var(--bg-dark);
+    overflow: hidden;
   }
 
   .center-state { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; gap: 8px; }
