@@ -30,13 +30,13 @@ export default defineConfig(async () => ({
   },
   // Prevent Vite from trying to optimize Tauri plugins (they're runtime-resolved)
   optimizeDeps: {
-    exclude: ['@tauri-apps/plugin-fs']
+    exclude: ["@tauri-apps/plugin-fs"]
   },
   build: {
     rollupOptions: {
       external: [
         // Tauri plugins are resolved at runtime, not build time
-        '@tauri-apps/plugin-fs',
+        "@tauri-apps/plugin-fs",
       ]
     }
   }
