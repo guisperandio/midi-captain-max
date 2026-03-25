@@ -376,15 +376,47 @@
       }
 
       // Load the imported config (this will also validate it via the load process)
-      loadConfig(importedConfig);
-      currentConfigRaw.set(json);
-      hasUnsavedChanges.set(true);  // Mark as changed so user knows to save
+      const previousState = {
+        devices: get(devices),
+        selectedDevice: get(selectedDevice),
+        currentConfigRaw: get(currentConfigRaw),
+        hasUnsavedChanges: get(hasUnsavedChanges),
+        validationErrors: get(validationErrors),
+        statusMessage: get(statusMessage),
+        isLoading: get(isLoading),
+        isReloadingDevice: get(isReloadingDevice),
+        lastSavedTimestamp: get(lastSavedTimestamp),
+        firmwareVersion: get(firmwareVersion),
+        saveFeedback: get(saveFeedback)
+      };
 
-      // Validate the loaded config
-      const validationResult = validate();
-      if (!validationResult.isValid) {
-        const errorMessages = Array.from(validationResult.errors.values()).slice(0, 5).join('\n');
-        throw new Error(`Configuration has validation errors:\n${errorMessages}`);
+      try {
+        loadConfig(importedConfig);
+
+        // Validate the loaded config
+        const validationResult = validate();
+        if (!validationResult.isValid) {
+          const errorMessages = Array.from(validationResult.errors.values()).slice(0, 5).join('\n');
+          throw new Error(`Configuration has validation errors:\n${errorMessages}`);
+        }
+
+        // Only update the raw JSON and dirty flag after successful validation
+        currentConfigRaw.set(json);
+        hasUnsavedChanges.set(true);  // Mark as changed so user knows to save
+      } catch (e: any) {
+        // Restore previous editor state on failure to avoid leaving an invalid config loaded
+        devices.set(previousState.devices);
+        selectedDevice.set(previousState.selectedDevice);
+        currentConfigRaw.set(previousState.currentConfigRaw);
+        hasUnsavedChanges.set(previousState.hasUnsavedChanges);
+        validationErrors.set(previousState.validationErrors);
+        statusMessage.set(previousState.statusMessage);
+        isLoading.set(previousState.isLoading);
+        isReloadingDevice.set(previousState.isReloadingDevice);
+        lastSavedTimestamp.set(previousState.lastSavedTimestamp);
+        firmwareVersion.set(previousState.firmwareVersion);
+        saveFeedback.set(previousState.saveFeedback);
+        throw e;
       }
 
       const filename = (selected as string).split('/').pop() || 'file';
