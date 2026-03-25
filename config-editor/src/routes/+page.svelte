@@ -419,7 +419,7 @@
         throw e;
       }
 
-      const filename = (selected as string).split('/').pop() || 'file';
+      const filename = (selected as string).split(/[\\/]/).pop() || 'file';
       showToast(`Configuration imported successfully`, 'success');
       statusMessage.set(`Imported from ${filename} - remember to save to device`);
     } catch (error: any) {
