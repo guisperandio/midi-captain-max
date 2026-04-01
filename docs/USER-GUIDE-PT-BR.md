@@ -14,14 +14,15 @@
 5. [Sistema de Bancos/Páginas](#sistema-de-bancospáginas)
 6. [Configuração de Botões](#configuração-de-botões)
 7. [Perfis de Dispositivos](#perfis-de-dispositivos)
-8. [Botões Multi-Estado (Keytimes)](#botões-multi-estado-keytimes)
-9. [Configuração do Encoder](#configuração-do-encoder)
-10. [Pedais de Expressão](#pedais-de-expressão)
-11. [Configurações de Display](#configurações-de-display)
-12. [Monitor MIDI](#monitor-midi)
-13. [Atalhos de Teclado](#atalhos-de-teclado)
-14. [Dicas e Melhores Práticas](#dicas-e-melhores-práticas)
-15. [Solução de Problemas](#solução-de-problemas)
+8. [Ações Condicionais](#ações-condicionais)
+9. [Botões Multi-Estado (Keytimes)](#botões-multi-estado-keytimes)
+10. [Configuração do Encoder](#configuração-do-encoder)
+11. [Pedais de Expressão](#pedais-de-expressão)
+12. [Configurações de Display](#configurações-de-display)
+13. [Monitor MIDI](#monitor-midi)
+14. [Atalhos de Teclado](#atalhos-de-teclado)
+15. [Dicas e Melhores Práticas](#dicas-e-melhores-práticas)
+16. [Solução de Problemas](#solução-de-problemas)
 
 ---
 
@@ -32,6 +33,7 @@ O **Editor de Configuração MIDI Captain MAX** é uma aplicação desktop que p
 - Configurar rótulos, cores e comandos MIDI dos botões
 - Configurar ações complexas com múltiplos comandos
 - Usar perfis de dispositivos para equipamentos populares (Quad Cortex, Helix, Kemper, etc.)
+- Criar lógica condicional para comportamento de botões sensível ao contexto
 - Configurar encoders e pedais de expressão
 - Personalizar o display do dispositivo
 - Depurar tráfego MIDI com o Monitor MIDI integrado
@@ -565,6 +567,355 @@ Quando você seleciona um botão, o editor mostra se os comandos MIDI existentes
 - **Indicador de badge**: Mostra perfil correspondente
 - **Tooltip**: Exibe nome do perfil detectado
 - Facilita identificar botões pré-configurados
+
+---
+
+## Ações Condicionais
+
+Ações Condicionais permitem que botões executem diferentes comandos MIDI baseados em condições em tempo real. Isso cria um comportamento inteligente e sensível ao contexto que se adapta à sua performance.
+
+### O Que São Ações Condicionais?
+
+Uma ação condicional usa lógica **SE/ENTÃO/SENÃO**:
+- **SE** uma condição é verdadeira (ex: "Botão 2 está ON")
+- **ENTÃO** execute estes comandos
+- **SENÃO** execute estes outros comandos
+
+Isso permite que um único botão se comporte diferentemente dependendo do estado de outros botões, mensagens MIDI recebidas, posição do pedal de expressão ou valor do encoder.
+
+### Quando Usar Condicionais
+
+**Casos de Uso Comuns:**
+- Enviar diferentes valores CC baseados em qual cena está ativa
+- Alternar entre duas configurações de efeito dependendo da seleção de canal
+- Responder diferentemente quando o host envia mensagens MIDI específicas
+- Ajustar comportamento baseado na posição do pedal de expressão
+- Criar botões "inteligentes" que se adaptam ao contexto da performance
+
+### Os 5 Tipos de Condição
+
+#### 1. Estado do Botão
+
+Verifica se outro botão está atualmente ON ou OFF.
+
+**Campos:**
+- **Botão**: Qual botão verificar (por índice)
+- **Estado**: "on" ou "off"
+
+**Exemplo:**  
+*"Se botão Drive (botão 1) está ON, envie CC50=127, senão envie CC50=0"*
+
+**Caso de Uso:** Efeito de delay que se comporta diferentemente baseado em se a distorção está ativa
+
+#### 2. Keytime do Botão
+
+Verifica em qual estado de keytime um botão multi-estado está atualmente.
+
+**Campos:**
+- **Botão**: Qual botão verificar
+- **Keytime**: Índice do estado (0 = primeiro estado, 1 = segundo estado, etc.)
+
+**Exemplo:**  
+*"Se botão Scene (botão 0) está no keytime 2, envie PC5, senão envie PC1"*
+
+**Caso de Uso:** Diferentes configurações de boost para cada cena
+
+#### 3. MIDI Recebido
+
+Verifica o valor de uma mensagem MIDI CC recebida do host.
+
+**Campos:**
+- **Canal**: Canal MIDI (0-15)
+- **Número CC**: Número do controlador a verificar
+- **Operador**: Tipo de comparação (==, !=, >, <, >=, <=)
+- **Valor**: Valor para comparar (0-127)
+
+**Exemplo:**  
+*"Se CC100 recebido no canal 0 >= 64, envie CC25=127, senão envie CC25=0"*
+
+**Caso de Uso:** Comportamento do botão muda baseado no que a DAW envia (sincronização bidirecional)
+
+#### 4. Pedal de Expressão
+
+Verifica a posição atual de um pedal de expressão.
+
+**Campos:**
+- **Pedal**: "exp1" ou "exp2"
+- **Operador**: Tipo de comparação (==, !=, >, <, >=, <=)
+- **Valor**: Valor para comparar (0-127)
+
+**Exemplo:**  
+*"Se exp1 < 30, envie PC0, senão envie PC1"*
+
+**Caso de Uso:** Trocar cenas automaticamente baseado na posição do pedal (ponta vs calcanhar)
+
+#### 5. Posição do Encoder
+
+Verifica o valor atual do encoder rotativo.
+
+**Campos:**
+- **Operador**: Tipo de comparação (==, !=, >, <, >=, <=)
+- **Valor**: Valor para comparar (0-127)
+
+**Exemplo:**  
+*"Se encoder >= 64, envie CC30=127, senão envie CC30=64"*
+
+**Caso de Uso:** Diferente intensidade de efeito baseada na posição do encoder
+
+### Criando Comandos Condicionais
+
+#### Passo 1: Adicionar um Comando Condicional
+
+1. Selecione um botão
+2. Vá para a seção **Ações**
+3. Escolha um evento (Press, Release, Long Press, Long Release)
+4. Clique em **+ Adicionar Comando**
+5. Selecione **"Conditional"** no menu suspenso Tipo
+
+#### Passo 2: Construir a Condição
+
+O Construtor de Condição aparece com:
+- Menu suspenso **Tipo de Condição** (Estado do Botão, Keytime do Botão, etc.)
+- **Campos específicos do tipo** (índice do botão, número CC, operador, valor)
+
+1. Selecione tipo de condição
+2. Preencha os campos requeridos
+3. A condição é avaliada quando o botão é pressionado
+
+#### Passo 3: Definir Comandos ENTÃO
+
+1. Na seção **"ENTÃO"**, clique em **+ Adicionar Comando**
+2. Adicione comandos MIDI que executam se a condição for VERDADEIRA
+3. Pode adicionar múltiplos comandos (eles executam em sequência)
+4. Suporta CC, Note, PC, PC Inc/Dec, e até condicionais aninhadas
+
+#### Passo 4: Definir Comandos SENÃO (Opcional)
+
+1. Na seção **"SENÃO"**, clique em **+ Adicionar Comando**
+2. Adicione comandos MIDI que executam se a condição for FALSA
+3. Seção SENÃO é opcional (nada acontece se condição for falsa)
+
+#### Passo 5: Adicionar Rótulos de Display (Opcional)
+
+**Rótulo ENTÃO:**  
+Texto para mostrar no display quando o ramo ENTÃO executa (máx 6 caracteres)
+
+**Rótulo SENÃO:**  
+Texto para mostrar no display quando o ramo SENÃO executa (máx 6 caracteres)
+
+**Persistir Rótulo:**  
+Caixa de seleção - se habilitado, rótulos condicionais permanecem visíveis; se desabilitado, expiram após 3 segundos
+
+### Exemplos do Mundo Real
+
+#### Exemplo 1: Delay Sensível à Cena
+
+**Objetivo:** Botão de delay envia diferentes valores CC baseado na cena ativa
+
+**Configuração:**
+- Botão 0 = cena "CLEAN" (toggle)
+- Botão 3 = "DELAY" com condicional
+
+**Configuração do Botão 3:**
+```
+Press:
+  - Tipo: Conditional
+    SE: Estado do Botão
+      Botão: 0
+      Estado: on
+    ENTÃO:
+      - CC 22, Valor 64  (delay baixo para clean)
+    SENÃO:
+      - CC 22, Valor 127 (delay máximo para drive)
+    Rótulo ENTÃO: "DLY LO"
+    Rótulo SENÃO: "DLY HI"
+```
+
+**Resultado:** Quando CLEAN está ativo, delay é sutil; quando drive está ativo, delay é máximo
+
+#### Exemplo 2: Troca Automática Baseada em Expressão
+
+**Objetivo:** Botão troca cenas automaticamente baseado na posição do pedal de expressão
+
+**Configuração:**
+- Botão 5 = "CENA AUTO"
+
+**Configuração do Botão 5:**
+```
+Press:
+  - Tipo: Conditional
+    SE: Expressão
+      Pedal: exp1
+      Operador: <
+      Valor: 40
+    ENTÃO:
+      - PC 0  (cena 1 quando calcanhar abaixado)
+    SENÃO:
+      - PC 1  (cena 2 quando ponta levantada)
+```
+
+**Resultado:** Pressione botão uma vez, cena muda automaticamente baseado na posição do pedal
+
+#### Exemplo 3: Botão Responsivo ao Host
+
+**Objetivo:** Comportamento do botão muda baseado no estado da DAW
+
+**Configuração:**
+- DAW envia CC100=127 quando gravando, CC100=0 quando parado
+- Botão 8 = "REC SMART"
+
+**Configuração do Botão 8:**
+```
+Press:
+  - Tipo: Conditional
+    SE: MIDI Recebido
+      Canal: 0
+      CC: 100
+      Operador: ==
+      Valor: 127
+    ENTÃO:
+      - CC 50, Valor 0    (parar gravação)
+    SENÃO:
+      - CC 50, Valor 127  (iniciar gravação)
+```
+
+**Resultado:** Botão alterna gravação, adaptando-se ao estado atual da DAW
+
+#### Exemplo 4: Boost Multi-Cena
+
+**Objetivo:** Botão boost envia CC diferente baseado em qual botão de cena está ativo
+
+**Configuração:**
+- Botão 0 = Cena 1 (keytime 0)
+- Botão 0 = Cena 2 (keytime 1)
+- Botão 0 = Cena 3 (keytime 2)
+- Botão 6 = "BOOST" com condicionais
+
+**Configuração do Botão 6:**
+```
+Press:
+  - Tipo: Conditional
+    SE: Keytime do Botão
+      Botão: 0
+      Keytime: 0
+    ENTÃO:
+      - CC 70, Valor 127  (boost clean)
+    SENÃO:
+      - Tipo: Conditional
+        SE: Keytime do Botão
+          Botão: 0
+          Keytime: 1
+        ENTÃO:
+          - CC 71, Valor 127  (boost crunch)
+        SENÃO:
+          - CC 72, Valor 127  (boost lead)
+```
+
+**Resultado:** Botão boost ativa diferentes CCs de boost para cada cena (condicionais aninhadas)
+
+### Recursos Avançados
+
+#### Condicionais Aninhadas
+
+Condicionais podem ser aninhadas dentro dos ramos ENTÃO/SENÃO para árvores de lógica complexas:
+- SE botão 1 está ON
+  - ENTÃO SE botão 2 está ON
+    - ENTÃO envie CC30=127
+    - SENÃO envie CC30=64
+  - SENÃO envie CC30=0
+
+**Limite de profundidade:** Sem limite rígido, mas 2-3 níveis é tipicamente suficiente
+
+#### Misturando Condicionais com Comandos Regulares
+
+Você pode misturar comandos MIDI condicionais e regulares no mesmo evento:
+```
+Press:
+  - CC 10, Valor 127        (sempre envia isso)
+  - Tipo: Conditional       (comando condicional)
+    SE: ...
+    ENTÃO: ...
+  - PC 5                    (sempre envia isso após condicional)
+```
+
+Comandos executam na ordem em que aparecem.
+
+#### Avaliação de Snapshot de Estado
+
+Ao usar condições de Estado do Botão ou Keytime do Botão:
+- Condição é avaliada usando o estado do botão **no momento do pressionamento**
+- Isso garante comportamento consistente mesmo se outros botões mudarem durante a execução
+- Previne condições de corrida em configurações complexas
+
+### Elementos da Interface
+
+**Construtor de Condição:**
+- Menu suspenso para seleção de tipo de condição
+- Campos dinâmicos baseados no tipo selecionado
+- Filtragem de rótulo de botão (não pode referenciar o botão que está editando)
+
+**Bloco de Comando Condicional:**
+- Estrutura SE/ENTÃO/SENÃO recolhível
+- Aninhamento visual para clareza
+- Ramos codificados por cor (verde para ENTÃO, vermelho para SENÃO)
+- Alças de arrasto para reordenação (se aplicável)
+
+**Campos de Rótulo:**
+- Entradas de texto de Rótulo Então e Rótulo Senão
+- Limite de 6 caracteres
+- Caixa de seleção de persistência opcional
+
+### Dicas e Melhores Práticas
+
+**Comece Simples:**
+- Comece com lógica SE/ENTÃO básica antes de aninhar
+- Teste cada condição individualmente
+- Use rótulos de display para verificar qual ramo executou
+
+**Evite Auto-Referência:**
+- Não verifique o estado do botão que está editando
+- A interface previne isso, mas é conceitualmente importante
+
+**Use Rótulos para Depuração:**
+- Defina rótulos ENTÃO/SENÃO para ver qual ramo executou
+- Útil durante configuração e solução de problemas
+
+**Valores de Limiar de Expressão:**
+- Pedais de expressão leem 0-127
+- Use < 30 para "calcanhar abaixado", > 100 para "ponta levantada"
+- Evite igualdade exata (==) devido a jitter
+
+**Sincronização MIDI Recebido:**
+- Certifique-se de que seu host/DAW está enviando os valores CC esperados
+- Use Monitor MIDI para verificar mensagens recebidas
+- Números de canal são indexados em 0 nas condições (0 = canal MIDI 1)
+
+**Considerações de Performance:**
+- Condicionais são avaliadas rapidamente (< 1ms)
+- Sem latência perceptível mesmo com condicionais aninhadas
+- Seguro para usar em performance ao vivo
+
+### Solução de Problemas
+
+**Condicional Não Disparando:**
+- Verifique se os campos de condição estão corretos (índice do botão, número CC, canal)
+- Verifique se a condição é realmente verdadeira (use Monitor MIDI)
+- Certifique-se de que os ramos ENTÃO/SENÃO têm comandos adicionados
+
+**Ramo Errado Executando:**
+- Verifique novamente o operador (>, <, ==, etc.)
+- Verifique se o valor de limiar está correto
+- Use rótulos de display para confirmar qual ramo executou
+
+**Confusão de Índice de Botão:**
+- Índices de botão são baseados em 0: Botão 1 = índice 0, Botão 2 = índice 1
+- A interface mostra rótulos de botão para clareza
+- Confira Layout do Dispositivo para confirmar números de botão
+
+**Rótulo de Display Não Aparecendo:**
+- Rótulo deve ter 6 caracteres ou menos
+- Verifique se conditional_label_persist está habilitado na configuração do botão
+- Botões não-select expiram após 3 segundos a menos que persistir esteja habilitado
 
 ---
 

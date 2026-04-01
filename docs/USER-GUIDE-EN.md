@@ -14,14 +14,15 @@
 5. [Banks/Pages System](#banksPages-system)
 6. [Button Configuration](#button-configuration)
 7. [Device Profiles](#device-profiles)
-8. [Multi-State Buttons (Keytimes)](#multi-state-buttons-keytimes)
-9. [Encoder Configuration](#encoder-configuration)
-10. [Expression Pedals](#expression-pedals)
-11. [Display Settings](#display-settings)
-12. [MIDI Monitor](#midi-monitor)
-13. [Keyboard Shortcuts](#keyboard-shortcuts)
-14. [Tips and Best Practices](#tips-and-best-practices)
-15. [Troubleshooting](#troubleshooting)
+8. [Conditional Actions](#conditional-actions)
+9. [Multi-State Buttons (Keytimes)](#multi-state-buttons-keytimes)
+10. [Encoder Configuration](#encoder-configuration)
+11. [Expression Pedals](#expression-pedals)
+12. [Display Settings](#display-settings)
+13. [MIDI Monitor](#midi-monitor)
+14. [Keyboard Shortcuts](#keyboard-shortcuts)
+15. [Tips and Best Practices](#tips-and-best-practices)
+16. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -32,6 +33,7 @@ The **MIDI Captain MAX Config Editor** is a desktop application that allows you 
 - Configure button labels, colors, and MIDI commands
 - Set up complex multi-command actions
 - Use device profiles for popular gear (Quad Cortex, Helix, Kemper, etc.)
+- Create conditional logic for context-aware button behavior
 - Configure encoders and expression pedals
 - Customize the device display
 - Debug MIDI traffic with the built-in MIDI Monitor
@@ -565,6 +567,355 @@ When you select a button, the editor shows if existing MIDI commands match a kno
 - **Badge indicator**: Shows matching profile
 - **Tooltip**: Displays detected profile name
 - Makes it easy to identify preconfigured buttons
+
+---
+
+## Conditional Actions
+
+Conditional Actions enable buttons to execute different MIDI commands based on real-time conditions. This creates intelligent, context-aware behavior that adapts to your performance.
+
+### What Are Conditional Actions?
+
+A conditional action uses **IF/THEN/ELSE** logic:
+- **IF** a condition is true (e.g., "Button 2 is ON")
+- **THEN** execute these commands
+- **ELSE** execute these other commands
+
+This allows a single button to behave differently depending on the state of other buttons, received MIDI messages, expression pedal position, or encoder value.
+
+### When to Use Conditionals
+
+**Common Use Cases:**
+- Send different CC values based on which scene is active
+- Switch between two effect settings depending on channel selection
+- Respond differently when host sends specific MIDI messages
+- Adjust behavior based on expression pedal position
+- Create "smart" buttons that adapt to performance context
+
+### The 5 Condition Types
+
+#### 1. Button State
+
+Check if another button is currently ON or OFF.
+
+**Fields:**
+- **Button**: Which button to check (by index)
+- **State**: "on" or "off"
+
+**Example:**  
+*"If Drive button (button 1) is ON, send CC50=127, else send CC50=0"*
+
+**Use Case:** Delay effect that behaves differently based on whether distortion is active
+
+#### 2. Button Keytime
+
+Check which keytime state a multi-state button is currently in.
+
+**Fields:**
+- **Button**: Which button to check
+- **Keytime**: State index (0 = first state, 1 = second state, etc.)
+
+**Example:**  
+*"If Scene button (button 0) is in keytime 2, send PC5, else send PC1"*
+
+**Use Case:** Different boost settings for each scene
+
+#### 3. Received MIDI
+
+Check the value of a MIDI CC message received from the host.
+
+**Fields:**
+- **Channel**: MIDI channel (0-15)
+- **CC Number**: Controller number to check
+- **Operator**: Comparison type (==, !=, >, <, >=, <=)
+- **Value**: Value to compare against (0-127)
+
+**Example:**  
+*"If received CC100 on channel 0 >= 64, send CC25=127, else send CC25=0"*
+
+**Use Case:** Button behavior changes based on what the DAW sends (bidirectional sync)
+
+#### 4. Expression Pedal
+
+Check the current position of an expression pedal.
+
+**Fields:**
+- **Pedal**: "exp1" or "exp2"
+- **Operator**: Comparison type (==, !=, >, <, >=, <=)
+- **Value**: Value to compare against (0-127)
+
+**Example:**  
+*"If exp1 < 30, send PC0, else send PC1"*
+
+**Use Case:** Auto-switch scenes based on pedal position (toe vs heel)
+
+#### 5. Encoder Position
+
+Check the current value of the rotary encoder.
+
+**Fields:**
+- **Operator**: Comparison type (==, !=, >, <, >=, <=)
+- **Value**: Value to compare against (0-127)
+
+**Example:**  
+*"If encoder >= 64, send CC30=127, else send CC30=64"*
+
+**Use Case:** Different effect intensity based on encoder position
+
+### Creating Conditional Commands
+
+#### Step 1: Add a Conditional Command
+
+1. Select a button
+2. Go to **Actions** section
+3. Choose an event (Press, Release, Long Press, Long Release)
+4. Click **+ Add Command**
+5. Select **"Conditional"** from the Type dropdown
+
+#### Step 2: Build the Condition
+
+The Condition Builder appears with:
+- **Condition Type** dropdown (Button State, Button Keytime, etc.)
+- **Type-specific fields** (button index, CC number, operator, value)
+
+1. Select condition type
+2. Fill in the required fields
+3. The condition is evaluated when the button is pressed
+
+#### Step 3: Define THEN Commands
+
+1. In the **"THEN"** section, click **+ Add Command**
+2. Add MIDI commands that execute if condition is TRUE
+3. Can add multiple commands (they execute in sequence)
+4. Supports CC, Note, PC, PC Inc/Dec, and even nested conditionals
+
+#### Step 4: Define ELSE Commands (Optional)
+
+1. In the **"ELSE"** section, click **+ Add Command**
+2. Add MIDI commands that execute if condition is FALSE
+3. ELSE branch is optional (nothing happens if condition is false)
+
+#### Step 5: Add Display Labels (Optional)
+
+**THEN Label:**  
+Text to show on display when THEN branch executes (max 6 chars)
+
+**ELSE Label:**  
+Text to show on display when ELSE branch executes (max 6 chars)
+
+**Label Persist:**  
+Checkbox - if enabled, conditional labels stay visible; if disabled, they timeout after 3 seconds
+
+### Real-World Examples
+
+#### Example 1: Scene-Aware Delay
+
+**Goal:** Delay button sends different CC values based on active scene
+
+**Setup:**
+- Button 0 = "CLEAN" scene (toggle)
+- Button 3 = "DELAY" with conditional
+
+**Button 3 Configuration:**
+```
+Press:
+  - Type: Conditional
+    IF: Button State
+      Button: 0
+      State: on
+    THEN:
+      - CC 22, Value 64  (low delay for clean)
+    ELSE:
+      - CC 22, Value 127 (max delay for drive)
+    THEN Label: "DLY LO"
+    ELSE Label: "DLY HI"
+```
+
+**Result:** When CLEAN is active, delay is subtle; when drive is active, delay is maximum
+
+#### Example 2: Expression-Based Auto-Switch
+
+**Goal:** Button auto-switches scenes based on expression pedal position
+
+**Setup:**
+- Button 5 = "AUTO SCENE"
+
+**Button 5 Configuration:**
+```
+Press:
+  - Type: Conditional
+    IF: Expression
+      Pedal: exp1
+      Operator: <
+      Value: 40
+    THEN:
+      - PC 0  (scene 1 when heel down)
+    ELSE:
+      - PC 1  (scene 2 when toe up)
+```
+
+**Result:** Press button once, scene changes automatically based on pedal position
+
+#### Example 3: Host-Responsive Button
+
+**Goal:** Button behavior changes based on DAW state
+
+**Setup:**
+- DAW sends CC100=127 when recording, CC100=0 when stopped
+- Button 8 = "SMART REC"
+
+**Button 8 Configuration:**
+```
+Press:
+  - Type: Conditional
+    IF: Received MIDI
+      Channel: 0
+      CC: 100
+      Operator: ==
+      Value: 127
+    THEN:
+      - CC 50, Value 0    (stop recording)
+    ELSE:
+      - CC 50, Value 127  (start recording)
+```
+
+**Result:** Button toggles recording, adapting to current DAW state
+
+#### Example 4: Multi-Scene Boost
+
+**Goal:** Boost button sends different CC based on which scene button is active
+
+**Setup:**
+- Button 0 = Scene 1 (keytime 0)
+- Button 0 = Scene 2 (keytime 1)
+- Button 0 = Scene 3 (keytime 2)
+- Button 6 = "BOOST" with conditionals
+
+**Button 6 Configuration:**
+```
+Press:
+  - Type: Conditional
+    IF: Button Keytime
+      Button: 0
+      Keytime: 0
+    THEN:
+      - CC 70, Value 127  (clean boost)
+    ELSE:
+      - Type: Conditional
+        IF: Button Keytime
+          Button: 0
+          Keytime: 1
+        THEN:
+          - CC 71, Value 127  (crunch boost)
+        ELSE:
+          - CC 72, Value 127  (lead boost)
+```
+
+**Result:** Boost button activates different boost CCs for each scene (nested conditionals)
+
+### Advanced Features
+
+#### Nested Conditionals
+
+Conditionals can be nested inside THEN/ELSE branches for complex logic trees:
+- IF button 1 is ON
+  - THEN IF button 2 is ON
+    - THEN send CC30=127
+    - ELSE send CC30=64
+  - ELSE send CC30=0
+
+**Depth limit:** No hard limit, but 2-3 levels is typically sufficient
+
+#### Mixing Conditionals with Regular Commands
+
+You can mix conditional and regular MIDI commands in the same event:
+```
+Press:
+  - CC 10, Value 127        (always send this)
+  - Type: Conditional       (conditional command)
+    IF: ...
+    THEN: ...
+  - PC 5                    (always send this after conditional)
+```
+
+Commands execute in the order they appear.
+
+#### State Snapshot Evaluation
+
+When using Button State or Button Keytime conditions:
+- Condition is evaluated using button state **at press time**
+- This ensures consistent behavior even if other buttons change during execution
+- Prevents race conditions in complex setups
+
+### UI Elements
+
+**Condition Builder:**
+- Dropdown for condition type selection
+- Dynamic fields based on selected type
+- Button label filtering (can't reference the button you're editing)
+
+**Conditional Command Block:**
+- Collapsible IF/THEN/ELSE structure
+- Visual nesting for clarity
+- Color-coded branches (green for THEN, red for ELSE)
+- Drag handles for reordering (if applicable)
+
+**Label Fields:**
+- Then Label and Else Label text inputs
+- 6 character limit
+- Optional persistence checkbox
+
+### Tips and Best Practices
+
+**Start Simple:**
+- Begin with basic IF/THEN logic before nesting
+- Test each condition individually
+- Use display labels to verify which branch executed
+
+**Avoid Self-Reference:**
+- Don't check the state of the button you're editing
+- The UI prevents this, but it's conceptually important
+
+**Use Labels for Debugging:**
+- Set THEN/ELSE labels to see which branch executed
+- Helpful during setup and troubleshooting
+
+**Expression Threshold Values:**
+- Expression pedals read 0-127
+- Use < 30 for "heel down", > 100 for "toe up"
+- Avoid exact equality (==) due to jitter
+
+**Received MIDI Sync:**
+- Ensure your host/DAW is sending the expected CC values
+- Use MIDI Monitor to verify incoming messages
+- Channel numbers are 0-indexed in conditions (0 = MIDI channel 1)
+
+**Performance Considerations:**
+- Conditionals are evaluated quickly (< 1ms)
+- No noticeable latency even with nested conditionals
+- Safe to use in live performance
+
+### Troubleshooting
+
+**Conditional Not Triggering:**
+- Check condition fields are correct (button index, CC number, channel)
+- Verify the condition is actually true (use MIDI Monitor)
+- Ensure THEN/ELSE branches have commands added
+
+**Wrong Branch Executing:**
+- Double-check operator (>, <, ==, etc.)
+- Verify value threshold is correct
+- Use display labels to confirm which branch ran
+
+**Button Index Confusion:**
+- Button indices are 0-based: Button 1 = index 0, Button 2 = index 1
+- The UI shows button labels for clarity
+- Check Device Layout to confirm button numbers
+
+**Display Label Not Showing:**
+- Label must be 6 characters or less
+- Check if conditional_label_persist is enabled in button config
+- Non-select buttons timeout after 3 seconds unless persist is enabled
 
 ---
 
