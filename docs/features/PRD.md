@@ -3,15 +3,15 @@
 
 ## Overview
 
-MIDI Captain MAX is evolving from a firmware replacement into a programmable controller platform.
+MIDI Captain MAX has evolved from a firmware replacement into a **programmable controller platform**.
 
-The goal is to move beyond OEM parity and provide a programmable MIDI control environment.
+We've moved beyond OEM parity to provide a programmable MIDI control environment with advanced features like conditional logic, device profiles, and multi-bank configurations.
 
 Core features:
 
 1. Visual Button Editor ✅ **Completed** (PR #10)
 2. Device Profiles ✅ **Completed** (PR #15)
-3. Conditional / Smart Actions ⏳ **Planned**
+3. Conditional / Smart Actions ✅ **Completed** (PR #28)
 
 ---
 
@@ -140,7 +140,11 @@ Value
 
 ---
 
-# Feature 3 — Conditional Actions
+# Feature 3 — Conditional Actions ✅
+
+**Status:** Completed in PR #28 (merged 2026-03-23)  
+**Implementation:** ConditionEvaluator firmware class + ConditionBuilder/ConditionalCommandBlock UI components  
+**Documentation:** Types in `types.ts`, tests in `test_condition_evaluator.py` (15 tests)  
 
 ## Summary
 

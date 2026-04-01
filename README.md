@@ -22,8 +22,7 @@ This firmware transforms your MIDI Captain into a **bidirectional MIDI controlle
 - 🔄 **Bidirectional MIDI** — Host can update LEDs/display state with value-based scene matching
 - � **Banks/Pages System** — Up to 8 banks per device with button/CC/PC switching for complex live setups
 - �📺 **Center display** — Shows button names and MIDI info with smart timeout
-- ⚡ **Multi-command actions** — Send multiple MIDI messages per button press/release, each with independent channel control
-- 💾 **Export/Import Configs** — Save and share button configurations as JSON files with ⌘E/⌘I shortcuts
+- ⚡ **Multi-command actions** — Send multiple MIDI messages per button press/release, each with independent channel control- 🧠 **Conditional Actions** — If/Then/Else logic: buttons adapt based on state (other buttons, received MIDI, encoder, expression pedals)- 💾 **Export/Import Configs** — Save and share button configurations as JSON files with ⌘E/⌘I shortcuts
 - 🎯 **Device Profiles** — Built-in MIDI mappings for popular devices (Quad Cortex, Helix, Kemper, Ableton, MainStage)
 - ⚙️ **Config-driven** — Visual GUI Config Editor for all settings
 - 🎨 **Visual feedback** — LEDs and LCD reflect actual host state

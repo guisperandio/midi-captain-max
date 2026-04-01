@@ -2,6 +2,51 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Conditional Actions] - 2026-03-23
+
+### Added
+- **Conditional Actions** (PRD Feature 3): If/Then/Else logic for dynamic button behavior
+  - **5 condition types**: button_state, button_keytime, received_midi, expression, encoder
+  - **Nested conditionals**: Then/Else branches can contain more conditionals for complex logic trees
+  - **Label overrides**: `then_label` and `else_label` for visual feedback on display
+  - **Persistence control**: `conditional_label_persist` flag for label timeout behavior
+  - **Snapshot evaluation**: Uses button state at press time for consistent conditional logic
+  - **Full operator support**: ==, !=, >, <, >=, <= for numeric comparisons
+  - **Recursive nesting**: Conditionals can contain other conditionals in any branch
+  
+- **ConditionEvaluator Class** (firmware): Core conditional evaluation engine
+  - Type-specific evaluation functions for each condition type
+  - Operator dispatch with validation
+  - Button state snapshot support for press-time evaluation
+  - Expression pedal and encoder value conditions
+  - Received MIDI value tracking for host-driven logic
+  
+- **Conditional Editor UI** (config-editor): Full conditional command authoring interface
+  - ConditionBuilder: Dropdown-based condition construction with type-specific fields
+  - ConditionalCommandBlock: If/Then/Else branch editor with recursive command nesting
+  - CommandRow: Auto-detects and renders conditional blocks inline with MIDI commands
+  - Button label filtering (prevents self-reference in button_state conditions)
+  - Label preview for then_label and else_label display overrides
+  
+- **Config Schema Extensions**:
+  - `CommandOrConditional` union type (supports mixing MIDI commands + conditionals)
+  - `ConditionalCommand` interface with `if`/`then`/`else` structure
+  - `Condition` type with 5 variants (button_state, button_keytime, received_midi, expression, encoder)
+  - `then_label`/`else_label` optional display overrides per conditional
+  - `conditional_label_persist` button-level flag for label timeout control
+
+### Technical Implementation
+- Integration into `_send_action_from_cfg()` dispatcher (recursive conditional execution)
+- State snapshot system preserves button states at press time for consistent evaluation
+- Operator validation with type checking (prevents invalid comparisons)
+- Recursive conditional command processing in all event types (press/release/long_press/long_release)
+
+### Tests & Validation
+- 15 pytest tests for ConditionEvaluator (all condition types + all operators)
+- Rust config validation for ConditionalCommand schema with round-trip tests
+- Integration with existing multi-command dispatch system
+- Config migration tests preserve conditional commands through normalization
+
 ## [Export/Import Configuration] - 2026-03-24
 
 ### Added

@@ -293,6 +293,18 @@ Both distribution paths must include the same set of files and write the `VERSIO
 - Tests: `test_button_state.py`, `test_config.py`, `test_colors.py`, `test_neopixel_mock.py`, `test_switch_mock.py`, `test_usb_drive_name.py`
 - Run: `pytest` from project root
 
+### Test Coverage by Feature
+
+| Feature | Pytest Tests | Rust Tests | Integration Tests |
+|---------|-------------|------------|-------------------|
+| Conditional Actions | 15 ([test_condition_evaluator.py](tests/test_condition_evaluator.py)) | Config validation | n/a |
+| Banks/Pages | 29 ([test_bank_manager.py](tests/test_bank_manager.py), [test_bank_buttons.py](tests/test_bank_buttons.py), [test_banks_config.py](tests/test_banks_config.py)) | Config validation | n/a |
+| Long Press | 12 ([test_long_press.py](tests/test_long_press.py), [test_long_press_runtime.py](tests/test_long_press_runtime.py)) | Config validation | n/a |
+| Button Modes | 10 ([test_button_state.py](tests/test_button_state.py), [test_tap_mode_runtime.py](tests/test_tap_mode_runtime.py)) | Config validation | n/a |
+| Multi-Command | 9 ([test_multi_command.py](tests/test_multi_command.py)) | Config validation | n/a |
+| Select Groups | 2 ([test_select_group_runtime.py](tests/test_select_group_runtime.py)) | Config validation | n/a |
+| Config Migration | 5 ([test_config_migration.py](tests/test_config_migration.py), [test_config_migration_conditionals.py](tests/test_config_migration_conditionals.py)) | Config validation | n/a |
+
 ### Rust Tests (Config Editor)
 Unit tests for the Tauri backend live in `config-editor/src-tauri/src/` (in `config.rs` and `device.rs`).
 
@@ -393,28 +405,32 @@ Track features, bugs, and future work via [GitHub Issues](https://github.com/MC-
 - [x] Keyboard navigation support
 - [x] Replace DeviceGrid with DeviceLayout in LeftPanel
 
+### Phase 5: Device Profiles & Conditional Actions (PRD Features 2 & 3)
+- [x] Device Profiles (PRD Feature 2)
+  - [x] Profile schema design (YAML/JSON format)
+  - [x] Profile definitions (Quad Cortex, Helix, Kemper, Ableton, MainStage)
+  - [x] Profile resolver (action → MIDI)
+  - [x] Editor UI: profile selector, action dropdown
+  - [x] Config schema support for profile metadata
+- [x] Conditional Actions (PRD Feature 3)
+  - [x] Condition DSL design (5 condition types)
+  - [x] Firmware: condition evaluation engine (ConditionEvaluator)
+  - [x] State tracking system (button states, received MIDI, encoder, expression)
+  - [x] Editor: condition builder UI (ConditionBuilder + ConditionalCommandBlock)
+
+### Phase 6: Additional Features
+- [x] Keytimes / multi-press cycling (up to 9 states per button)
+- [x] Long-press detection (threshold-based with separate events)
+- [x] Pages / banks (8 banks with button/CC/PC switching)
+
 ### Future
-- [ ] Device Profiles (PRD Feature 2)
-  - [ ] Profile schema design (YAML/JSON format)
-  - [ ] Profile definitions (Quad Cortex, Helix, Kemper, Ableton, MainStage)
-  - [ ] Profile resolver (action → MIDI)
-  - [ ] Editor UI: profile selector, action dropdown
-  - [ ] Config schema support for profile metadata
-- [ ] Conditional Actions (PRD Feature 3)
-  - [ ] Condition DSL design
-  - [ ] Firmware: condition evaluation engine
-  - [ ] State tracking system
-  - [ ] Editor: condition builder UI
 - [ ] CI workflow DRY: `Setup Node.js` + `Install frontend dependencies` duplicated between `build-config-editor-macos` and `build-config-editor-windows` — could be a composite action
 - [ ] Release workflow DRY: find/rename/warn pattern in `Prepare release assets` repeats 3× (DMG, MSI, NSIS) — could be a shell function
 - [ ] Windows Signing Cert
 - [ ] Support for 1/2/4-switch variants
 - [ ] Custom display layouts
 - [ ] SysEx protocol documentation
-- [ ] Keytimes / multi-press cycling
 - [ ] Double-press detection (like double-click)
-- [ ] Long-press detection
-- [ ] Pages / banks
 
 ---
 
