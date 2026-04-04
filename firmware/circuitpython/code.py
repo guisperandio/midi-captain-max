@@ -682,9 +682,24 @@ def record_tap_tempo(idx, now):
         if len(buf) < 2:
             return
 
-        # Compute average interval between consecutive taps
+        # Strymon-style weighted average: recent taps matter more
+        # This makes tempo changes feel instant while smoothing out jitter
         intervals = [ (buf[i] - buf[i-1]) for i in range(1, len(buf)) ]
-        avg_interval = sum(intervals) / len(intervals)
+
+        if len(intervals) == 1:
+            # Only 2 taps - use the single interval directly
+            avg_interval = intervals[0]
+        elif len(intervals) == 2:
+            # 3 taps - weight most recent 70%, older 30%
+            avg_interval = intervals[0] * 0.3 + intervals[1] * 0.7
+        elif len(intervals) == 3:
+            # 4 taps - exponential weighting (15% / 25% / 60%)
+            # Most recent interval dominates, older intervals smooth jitter
+            avg_interval = intervals[0] * 0.15 + intervals[1] * 0.25 + intervals[2] * 0.6
+        else:
+            # Fallback: simple average (shouldn't hit this with TAP_HISTORY_SIZE=4)
+            avg_interval = sum(intervals) / len(intervals)
+
         # Convert to ms and clamp
         ms = clamp_tap_interval_ms(avg_interval * 1000)
         blink_rate_ms[idx] = ms
@@ -968,6 +983,88 @@ class _SnapState:
     def get_keytime(self):
         return self.current_keytime
 
+
+def _send_tap_midi_fast(action_cfg, btn_num, idx):
+    """Ultra-low-latency tap tempo MIDI send: no prints, no delays, no display updates.
+
+    Args:
+        action_cfg: Single command dict or list of command dicts
+        btn_num: 1-indexed button number
+        idx: 0-indexed button index
+
+    This function sends MIDI commands with absolute minimal latency to ensure
+    tap tempo timing accuracy. It skips:
+    - Print statements (logging happens after MIDI send completes)
+    - Inter-command delays
+    - Display/label updates
+    - Conditional logic
+    - PC flash tracking
+
+    Every microsecond counts for tempo accuracy.
+    """
+    if not action_cfg:
+        return
+
+    # Normalize to list
+    if isinstance(action_cfg, dict):
+        commands = [action_cfg]
+    elif isinstance(action_cfg, list):
+        commands = action_cfg
+    else:
+        print(f"[WARN] Invalid tap action_cfg type (button {btn_num}): {type(action_cfg)}")
+        return
+
+    # Send each command immediately - NO PRINTS, NO DELAYS, NO DISPLAY UPDATES
+    last_cmd = None
+    for cmd in commands:
+        if not isinstance(cmd, dict):
+            continue  # Skip silently to avoid print overhead
+
+        msg_type = cmd.get("type", "cc")
+        channel = cmd.get("channel", 0)
+
+        try:
+            if msg_type == "cc":
+                cc = cmd.get("cc", 20 + idx)
+                val = cmd.get("value", cmd.get("cc_on", 127))
+                send_midi_message(ControlChange(cc, val), channel=channel)
+                last_cmd = ("cc", cc, val)
+
+            elif msg_type == "note":
+                note = cmd.get("note", 60)
+                vel = cmd.get("velocity", cmd.get("velocity_on", 127))
+                send_midi_message(NoteOn(note, vel), channel=channel)
+                last_cmd = ("note", note, vel)
+
+            elif msg_type == "pc":
+                program = cmd.get("program", 0)
+                send_midi_message(ProgramChange(program), channel=channel)
+                last_cmd = ("pc", program, None)
+
+            elif msg_type == "pc_inc":
+                step = cmd.get("pc_step", 1)
+                pc_values[channel] = clamp_pc_value(pc_values[channel] + step)
+                send_midi_message(ProgramChange(pc_values[channel]), channel=channel)
+                last_cmd = ("pc", pc_values[channel], step)
+
+            elif msg_type == "pc_dec":
+                step = cmd.get("pc_step", 1)
+                pc_values[channel] = clamp_pc_value(pc_values[channel] - step)
+                send_midi_message(ProgramChange(pc_values[channel]), channel=channel)
+                last_cmd = ("pc", pc_values[channel], -step)
+
+        except Exception:
+            pass  # Fail silently to avoid print overhead in critical path
+
+    # After all MIDI sent, update status label once (outside critical timing path)
+    if last_cmd:
+        cmd_type, val1, val2 = last_cmd
+        if cmd_type == "cc":
+            set_label_text(status_label, f"TX CC{val1}={val2}")
+        elif cmd_type == "note":
+            set_label_text(status_label, f"TX Note{val1}")
+        elif cmd_type == "pc":
+            set_label_text(status_label, f"TX PC{val1}")
 
 def _send_action_from_cfg(action_cfg, btn_num, idx, action_name=None, skip_label_update=False):
     """Send MIDI from action config (single dict or list of dicts).
@@ -1294,23 +1391,32 @@ def handle_midi():
 
     Checks both USB and TRS/serial MIDI for incoming messages (like Helmut's
     original firmware). Some pedals connected via TRS need bidirectional comms.
-    
+
     Drains each port's buffer completely to avoid overflow when receiving
     rapid message sequences (e.g., when switching scene/bank on external device).
+
+    During the startup grace period, incoming messages are drained from the
+    buffers but NOT processed. This prevents external devices (e.g. Quad Cortex)
+    from overriding default_selected button state with their power-on MIDI burst.
     """
+    # Check if we're still in the startup grace period
+    in_grace_period = (time.monotonic() - startup_time_monotonic) < STARTUP_MIDI_GRACE_PERIOD_SEC
+
     # Drain USB MIDI buffer completely
     while True:
         msg = midi_usb.receive()
         if msg is None:
             break
-        _process_incoming_midi(msg)
+        if not in_grace_period:
+            _process_incoming_midi(msg)
 
     # Drain TRS/serial MIDI buffer completely
     while True:
         msg = midi_trs.receive()
         if msg is None:
             break
-        _process_incoming_midi(msg)
+        if not in_grace_period:
+            _process_incoming_midi(msg)
 
 
 def handle_bank_switch(target_bank_idx=None):
@@ -1627,15 +1733,26 @@ def handle_switches():
 
                 # Handle tap tempo recording
                 if mode == "tap":
+                    # CRITICAL PATH: Send MIDI first for minimal latency, then do bookkeeping
+                    btn_state.advance_keytime()
+                    press_cfg = _get_effective_action_cfg(btn_config, "press", btn_state.get_keytime())
+                    if press_cfg:
+                        _send_tap_midi_fast(press_cfg, btn_num, idx)
+                        short_action_executed[idx] = True
+
+                    # Bookkeeping after MIDI (doesn't affect timing)
                     record_tap_tempo(idx, now)
                     # Start blinking for tap mode - short flash at tempo
                     blink_state[idx] = True
                     blink_next_toggle[idx] = now + 0.1  # 100ms flash
 
+                    # Skip normal press dispatch below (already sent via fast path)
+                    continue
+
                 # Dispatch press event
                 if not long_enabled:
                     # No long-press: execute press action immediately
-                    if mode in ("toggle", "normal", "select", "tap"):
+                    if mode in ("toggle", "normal", "select"):
                         # Advance keytime for toggle modes
                         btn_state.advance_keytime()
                         # For toggle/select: update state and LED, dispatch appropriate event
@@ -1669,12 +1786,6 @@ def handle_switches():
                                 action_cfg = _make_simple_toggle_cmd(btn_config, new_state, idx)
                             if action_cfg:
                                 _send_action_from_cfg(action_cfg, btn_num, idx, "press" if new_state else "release")
-                                short_action_executed[idx] = True
-                        else:
-                            # Tap mode: always dispatch press
-                            press_cfg = _get_effective_action_cfg(btn_config, "press", btn_state.get_keytime())
-                            if press_cfg:
-                                _send_action_from_cfg(press_cfg, btn_num, idx, "press")
                                 short_action_executed[idx] = True
                     else:
                         # Momentary or other modes: dispatch press event
@@ -2028,7 +2139,15 @@ for i, b in enumerate(buttons):
 pixels.fill((0, 255, 0))
 pixels.show()
 time.sleep(0.5)
-init_leds()
+# Don't call init_leds() here - it would turn off default_selected buttons
+# that were just activated above. Instead, restore LEDs to match button_states.
+for i in range(BUTTON_COUNT):
+    set_button_state(i + 1, button_states[i].state)
+
+# Record startup time for MIDI grace period
+# Ignore incoming MIDI for first 2 seconds to prevent host from overriding default_selected
+startup_time_monotonic = time.monotonic()
+STARTUP_MIDI_GRACE_PERIOD_SEC = 2.0
 
 # Show CC mapping info
 if HAS_ENCODER:
