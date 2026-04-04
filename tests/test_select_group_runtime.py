@@ -99,6 +99,9 @@ def test_host_driven_select_group_preserves_exclusivity(tmp_path, firmware_modul
     validated = validate_config(cfg, button_count=fw.BUTTON_COUNT)
     fw.buttons = validated["buttons"]
 
+    # Advance past startup MIDI grace period so incoming MIDI is processed
+    fw.startup_time_monotonic = -10.0
+
     # Simulate host sending CC31=127 to turn B on
     # Must return None after first message to avoid infinite loop in handle_midi()
     from adafruit_midi.control_change import ControlChange
