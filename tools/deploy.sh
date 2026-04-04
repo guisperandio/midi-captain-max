@@ -57,6 +57,8 @@ DO_INSTALL=false
 LIBS_ONLY=false
 DO_FRESH=false
 DO_DRY_RUN=false
+DO_VERIFY=false
+DO_FAST=false
 
 # Skip options for faster iteration
 SKIP_FONTS=false
@@ -103,6 +105,12 @@ for arg in "$@"; do
         --dry-run)
             DO_DRY_RUN=true
             ;;
+        --verify)
+            DO_VERIFY=true
+            ;;
+        --fast)
+            DO_FAST=true
+            ;;
         --code-only)
             CODE_ONLY=true
             ;;
@@ -124,6 +132,8 @@ for arg in "$@"; do
             echo "  --eject       Eject device after deploy (forces clean reload)"
             echo "  --fresh       Overwrite config.json even if it exists"
             echo "  --dry-run     Preview changes without copying files"
+            echo "  --fast        Ultra-fast: only copy if file size changed"
+            echo "  --verify      Thorough: use content checksums (slow)"
             echo ""
             echo "Speed Options (for development):"
             echo "  --code-only   Only deploy code.py (fastest: ~0.5s)"
@@ -216,7 +226,7 @@ echo -e "${GREEN}✓ Device found at $MOUNT_POINT${NC}"
 if [ "$DO_INSTALL" = true ]; then
     echo ""
     echo -e "${YELLOW}📦 Installing CircuitPython libraries...${NC}"
-    
+
     # Check for circup
     if ! command -v circup &> /dev/null; then
         echo "  circup not found. Installing..."
@@ -228,7 +238,7 @@ if [ "$DO_INSTALL" = true ]; then
         fi
     fi
     echo -e "${GREEN}✓ circup available${NC}"
-    
+
     # Install each library
     for lib in "${REQUIRED_LIBS[@]}"; do
         echo -n "  Installing $lib... "
@@ -244,7 +254,7 @@ if [ "$DO_INSTALL" = true ]; then
         fi
     done
     echo -e "${GREEN}✓ Libraries installed${NC}"
-    
+
     # Exit early if libs-only mode
     if [ "$LIBS_ONLY" = true ]; then
         echo ""
@@ -329,10 +339,10 @@ if command -v df &>/dev/null; then
     # Get available space in KB, cross-platform (works on macOS and Linux)
     AVAILABLE_KB=$(df -k "$MOUNT_POINT" | tail -1 | awk '{print $4}')
     AVAILABLE_MB=$((AVAILABLE_KB / 1024))
-    
+
     # Firmware typically needs ~500KB-1MB
     MIN_REQUIRED_MB=1
-    
+
     if [ "$AVAILABLE_MB" -lt "$MIN_REQUIRED_MB" ]; then
         echo -e "${RED}❌ Insufficient disk space!${NC}"
         echo "   Available: ${AVAILABLE_MB} MB"
@@ -391,7 +401,12 @@ show_progress() {
 
 # Helper to add dry-run flag if enabled
 rsync_flags() {
-    local flags="-a --checksum --inplace --itemize-changes"
+    local flags="-a --inplace --itemize-changes"
+    if [ "$DO_VERIFY" = true ]; then
+        flags="$flags --checksum"
+    elif [ "$DO_FAST" = true ]; then
+        flags="$flags --size-only"
+    fi
     if [ "$DO_DRY_RUN" = true ]; then
         flags="$flags --dry-run"
     fi
@@ -406,8 +421,10 @@ rsync_flags() {
 # production firmware. See .github/workflows/ci.yml for the compile step.
 #
 # rsync flags:
-# -a: archive mode (preserve permissions)
-# --checksum: compare by content hash, not timestamp (only copies changed files)
+# -a: archive mode (preserve permissions, includes -t for timestamp comparison)
+# Default: compare by timestamp + size (copy if source is newer OR size differs)
+# --fast: add --size-only (skip timestamp check, only copy if size changed)
+# --verify: add --checksum (compare by content hash, slower but catches all changes)
 # --inplace: minimize file rewrites
 # --itemize-changes: show what changed (suppresses output for unchanged files)
 # No -v flag: reduces noise, only shows actual changes via --itemize-changes
@@ -431,7 +448,7 @@ if [ "$CODE_ONLY" != true ]; then
     # deploying compiled .mpy from a package, or old .mpy when deploying .py
     # source from the dev repo). Without --delete, both forms can coexist on
     # the device and CircuitPython may load the wrong one, causing ImportErrors.
-    
+
     # Deploy all three in parallel (they don't depend on each other)
     (
         rsync $(rsync_flags) --delete \
@@ -441,7 +458,7 @@ if [ "$CODE_ONLY" != true ]; then
             "$DEV_DIR/core/" "$MOUNT_POINT/core/" > /tmp/deploy_core.$$ 2>&1
     ) &
     CORE_PID=$!
-    
+
     (
         rsync $(rsync_flags) --delete \
             --exclude='.DS_Store' \
@@ -450,7 +467,7 @@ if [ "$CODE_ONLY" != true ]; then
             "$DEV_DIR/devices/" "$MOUNT_POINT/devices/" > /tmp/deploy_devices.$$ 2>&1
     ) &
     DEVICES_PID=$!
-    
+
     (
         rsync $(rsync_flags) --delete \
             --exclude='.DS_Store' \
@@ -459,18 +476,25 @@ if [ "$CODE_ONLY" != true ]; then
             "$DEV_DIR/handlers/" "$MOUNT_POINT/handlers/" > /tmp/deploy_handlers.$$ 2>&1
     ) &
     HANDLERS_PID=$!
-    
+
     # Wait for all three to complete
     wait $CORE_PID
     wait $DEVICES_PID
     wait $HANDLERS_PID
-    
+
     # Count changes from temp files
     CORE_CHANGES=$(grep -c '^[>*]' /tmp/deploy_core.$$ 2>/dev/null || echo 0)
     DEVICES_CHANGES=$(grep -c '^[>*]' /tmp/deploy_devices.$$ 2>/dev/null || echo 0)
     HANDLERS_CHANGES=$(grep -c '^[>*]' /tmp/deploy_handlers.$$ 2>/dev/null || echo 0)
+    # Strip whitespace and ensure integers
+    CORE_CHANGES=$(echo "$CORE_CHANGES" | tr -d '[:space:]')
+    DEVICES_CHANGES=$(echo "$DEVICES_CHANGES" | tr -d '[:space:]')
+    HANDLERS_CHANGES=$(echo "$HANDLERS_CHANGES" | tr -d '[:space:]')
+    CORE_CHANGES=${CORE_CHANGES:-0}
+    DEVICES_CHANGES=${DEVICES_CHANGES:-0}
+    HANDLERS_CHANGES=${HANDLERS_CHANGES:-0}
     CHANGED_FILES=$((CHANGED_FILES + CORE_CHANGES + DEVICES_CHANGES + HANDLERS_CHANGES))
-    
+
     # Cleanup temp files
     rm -f /tmp/deploy_core.$$ /tmp/deploy_devices.$$ /tmp/deploy_handlers.$$
 fi
@@ -478,7 +502,11 @@ fi
 # 3. Fonts and libraries (deployed in parallel for speed)
 if [ "$CODE_ONLY" != true ] && { [ "$SKIP_FONTS" != true ] || [ "$SKIP_LIBS" != true ]; }; then
     show_progress "Deploying fonts and libraries..."
-    
+
+    # Initialize PID variables
+    FONTS_PID=""
+    LIBS_PID=""
+
     # Deploy fonts and libs in parallel (they don't depend on each other)
     if [ "$SKIP_FONTS" != true ]; then
         (
@@ -488,7 +516,7 @@ if [ "$CODE_ONLY" != true ] && { [ "$SKIP_FONTS" != true ] || [ "$SKIP_LIBS" != 
         ) &
         FONTS_PID=$!
     fi
-    
+
     if [ "$SKIP_LIBS" != true ]; then
         (
             rsync $(rsync_flags) \
@@ -505,11 +533,15 @@ if [ "$CODE_ONLY" != true ] && { [ "$SKIP_FONTS" != true ] || [ "$SKIP_LIBS" != 
     # Count changes from temp files
     if [ "$SKIP_FONTS" != true ]; then
         FONTS_CHANGES=$(grep -c '^>' /tmp/deploy_fonts.$$ 2>/dev/null || echo 0)
+        FONTS_CHANGES=$(echo "$FONTS_CHANGES" | tr -d '[:space:]')
+        FONTS_CHANGES=${FONTS_CHANGES:-0}
         CHANGED_FILES=$((CHANGED_FILES + FONTS_CHANGES))
     fi
-    
+
     if [ "$SKIP_LIBS" != true ]; then
         LIB_CHANGES=$(grep -c '^>' /tmp/deploy_libs.$$ 2>/dev/null || echo 0)
+        LIB_CHANGES=$(echo "$LIB_CHANGES" | tr -d '[:space:]')
+        LIB_CHANGES=${LIB_CHANGES:-0}
         CHANGED_FILES=$((CHANGED_FILES + LIB_CHANGES))
     fi
 
@@ -644,8 +676,8 @@ fi
 
 # Show timing for last step
 if [ "$STEP_START_TIME" -ne 0 ]; then
-    local step_end=$(date +%s)
-    local step_duration=$((step_end - STEP_START_TIME))
+    step_end=$(date +%s)
+    step_duration=$((step_end - STEP_START_TIME))
     echo -e " ${BLUE}(${step_duration}s)${NC}"
 fi
 
