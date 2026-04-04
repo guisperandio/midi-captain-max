@@ -447,6 +447,15 @@ display = ST7789(
     rotation=DISPLAY_ROTATION,
 )
 
+# Show blank black screen immediately to avoid displaying uninitialized RAM noise
+blank_group = displayio.Group()
+blank_bitmap = displayio.Bitmap(DISPLAY_WIDTH, DISPLAY_HEIGHT, 1)
+blank_palette = displayio.Palette(1)
+blank_palette[0] = 0x000000  # Black
+blank_sprite = displayio.TileGrid(blank_bitmap, pixel_shader=blank_palette, x=0, y=0)
+blank_group.append(blank_sprite)
+display.show(blank_group)
+
 # Boot splash screen (optional)
 # If /splash.bmp exists, display it for configured duration
 splash_config = config.get("splash_screen", {})
