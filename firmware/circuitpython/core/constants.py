@@ -79,8 +79,15 @@ VBAT_FILTER_ALPHA = 0.01  # Exponential moving average smoothing factor
 # Performance Thresholds
 # =============================================================================
 
-# Performance monitoring (for future instrumentation)
-SLOW_OPERATION_THRESHOLD_MS = 10  # Warn if operation exceeds this
+# Main loop performance monitoring
+SLOW_OPERATION_THRESHOLD_MS = 10  # Warn if operation exceeds this (ms)
+SLOW_LOOP_THRESHOLD_MS = 5  # Warn if entire loop iteration exceeds this (ms)
+
+# MIDI message processing limits (prevent blocking on heavy MIDI traffic)
+MAX_MIDI_MESSAGES_PER_LOOP = 32  # Maximum messages to process per loop iteration
+# At 31250 baud, MIDI sends ~3125 bytes/sec = ~1042 messages/sec max theoretical
+# With no sleep in main loop, we run ~1000-2000 loops/sec, so 32 msgs/loop
+# gives us headroom for normal traffic while preventing starvation
 
 # =============================================================================
 # Program Change Tracking
