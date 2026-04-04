@@ -550,6 +550,24 @@ midi_trs = adafruit_midi.MIDI(
 
 print(f"MIDI initialized: transport={MIDI_TRANSPORT}")
 
+# =============================================================================
+# MIDI Message Object Pool (Performance Optimization)
+# =============================================================================
+#
+# Pre-allocate reusable MIDI message objects to avoid memory allocation overhead
+# in the main loop. MIDI messages are sent frequently (button presses, encoder
+# movements, expression pedals), and creating new objects each time adds latency
+# and memory pressure.
+#
+# These objects are mutable - we update their fields before each send instead
+# of creating new instances. This is especially important for CircuitPython
+# where memory allocation is expensive and can trigger garbage collection.
+#
+_midi_cc_msg = ControlChange(0, 0)      # Reusable ControlChange message
+_midi_pc_msg = ProgramChange(0)         # Reusable ProgramChange message
+_midi_note_on_msg = NoteOn(0, 0)        # Reusable NoteOn message
+_midi_note_off_msg = NoteOff(0, 0)      # Reusable NoteOff message
+
 
 def send_midi_message(msg, channel=0):
     """Send a MIDI message to USB, TRS, or both transports on specified channel.
@@ -1027,30 +1045,42 @@ def _send_tap_midi_fast(action_cfg, btn_num, idx):
             if msg_type == "cc":
                 cc = cmd.get("cc", 20 + idx)
                 val = cmd.get("value", cmd.get("cc_on", 127))
-                send_midi_message(ControlChange(cc, val), channel=channel)
+                # Reuse message object for performance (avoid allocation)
+                _midi_cc_msg.control = cc
+                _midi_cc_msg.value = val
+                send_midi_message(_midi_cc_msg, channel=channel)
                 last_cmd = ("cc", cc, val)
 
             elif msg_type == "note":
                 note = cmd.get("note", 60)
                 vel = cmd.get("velocity", cmd.get("velocity_on", 127))
-                send_midi_message(NoteOn(note, vel), channel=channel)
+                # Reuse message object for performance (avoid allocation)
+                _midi_note_on_msg.note = note
+                _midi_note_on_msg.velocity = vel
+                send_midi_message(_midi_note_on_msg, channel=channel)
                 last_cmd = ("note", note, vel)
 
             elif msg_type == "pc":
                 program = cmd.get("program", 0)
-                send_midi_message(ProgramChange(program), channel=channel)
+                # Reuse message object for performance (avoid allocation)
+                _midi_pc_msg.patch = program
+                send_midi_message(_midi_pc_msg, channel=channel)
                 last_cmd = ("pc", program, None)
 
             elif msg_type == "pc_inc":
                 step = cmd.get("pc_step", 1)
                 pc_values[channel] = clamp_pc_value(pc_values[channel] + step)
-                send_midi_message(ProgramChange(pc_values[channel]), channel=channel)
+                # Reuse message object for performance (avoid allocation)
+                _midi_pc_msg.patch = pc_values[channel]
+                send_midi_message(_midi_pc_msg, channel=channel)
                 last_cmd = ("pc", pc_values[channel], step)
 
             elif msg_type == "pc_dec":
                 step = cmd.get("pc_step", 1)
                 pc_values[channel] = clamp_pc_value(pc_values[channel] - step)
-                send_midi_message(ProgramChange(pc_values[channel]), channel=channel)
+                # Reuse message object for performance (avoid allocation)
+                _midi_pc_msg.patch = pc_values[channel]
+                send_midi_message(_midi_pc_msg, channel=channel)
                 last_cmd = ("pc", pc_values[channel], -step)
 
         except Exception:
@@ -1237,20 +1267,28 @@ def _send_action_from_cfg(action_cfg, btn_num, idx, action_name=None, skip_label
             if msg_type == "cc":
                 cc = cmd.get("cc", 20 + idx)
                 val = cmd.get("value", cmd.get("cc_on", 127))
-                send_midi_message(ControlChange(cc, val), channel=channel)
+                # Reuse message object for performance (avoid allocation)
+                _midi_cc_msg.control = cc
+                _midi_cc_msg.value = val
+                send_midi_message(_midi_cc_msg, channel=channel)
                 print(f"[MIDI TX] Ch{channel+1} CC{cc}={val} (switch {btn_num})")
                 set_label_text(status_label, f"TX CC{cc}={val}")
 
             elif msg_type == "note":
                 note = cmd.get("note", 60)
                 vel = cmd.get("velocity", cmd.get("velocity_on", 127))
-                send_midi_message(NoteOn(note, vel), channel=channel)
+                # Reuse message object for performance (avoid allocation)
+                _midi_note_on_msg.note = note
+                _midi_note_on_msg.velocity = vel
+                send_midi_message(_midi_note_on_msg, channel=channel)
                 print(f"[MIDI TX] Ch{channel+1} NoteOn{note} vel{vel} (switch {btn_num})")
                 set_label_text(status_label, f"TX Note{note}")
 
             elif msg_type == "pc":
                 program = cmd.get("program", 0)
-                send_midi_message(ProgramChange(program), channel=channel)
+                # Reuse message object for performance (avoid allocation)
+                _midi_pc_msg.patch = program
+                send_midi_message(_midi_pc_msg, channel=channel)
                 print(f"[MIDI TX] Ch{channel+1} PC{program} (switch {btn_num})")
                 set_label_text(status_label, f"TX PC{program}")
                 pc_command_sent = True
@@ -1258,7 +1296,9 @@ def _send_action_from_cfg(action_cfg, btn_num, idx, action_name=None, skip_label
             elif msg_type == "pc_inc":
                 step = cmd.get("pc_step", 1)
                 pc_values[channel] = clamp_pc_value(pc_values[channel] + step)
-                send_midi_message(ProgramChange(pc_values[channel]), channel=channel)
+                # Reuse message object for performance (avoid allocation)
+                _midi_pc_msg.patch = pc_values[channel]
+                send_midi_message(_midi_pc_msg, channel=channel)
                 print(f"[MIDI TX] Ch{channel+1} PC{pc_values[channel]} +{step} (switch {btn_num})")
                 set_label_text(status_label, f"TX PC{pc_values[channel]}")
                 pc_command_sent = True
@@ -1266,7 +1306,9 @@ def _send_action_from_cfg(action_cfg, btn_num, idx, action_name=None, skip_label
             elif msg_type == "pc_dec":
                 step = cmd.get("pc_step", 1)
                 pc_values[channel] = clamp_pc_value(pc_values[channel] - step)
-                send_midi_message(ProgramChange(pc_values[channel]), channel=channel)
+                # Reuse message object for performance (avoid allocation)
+                _midi_pc_msg.patch = pc_values[channel]
+                send_midi_message(_midi_pc_msg, channel=channel)
                 print(f"[MIDI TX] Ch{channel+1} PC{pc_values[channel]} -{step} (switch {btn_num})")
                 set_label_text(status_label, f"TX PC{pc_values[channel]}")
                 pc_command_sent = True
@@ -1646,12 +1688,18 @@ def _deselect_group(group_name, keep_idx):
                         if msg_type == "cc":
                             cc = state_cfg.get("cc", 20 + j)
                             cc_off = state_cfg.get("cc_off", 0)
-                            send_midi_message(ControlChange(cc, cc_off), channel=ch)
+                            # Reuse message object for performance (avoid allocation)
+                            _midi_cc_msg.control = cc
+                            _midi_cc_msg.value = cc_off
+                            send_midi_message(_midi_cc_msg, channel=ch)
                             print(f"[MIDI TX] Ch{ch+1} CC{cc}={cc_off} (deselect sibling {j+1}, group {group_name})")
                         elif msg_type == "note":
                             note = state_cfg.get("note", 60)
                             vel_off = state_cfg.get("velocity_off", 0)
-                            send_midi_message(NoteOff(note, vel_off), channel=ch)
+                            # Reuse message object for performance (avoid allocation)
+                            _midi_note_off_msg.note = note
+                            _midi_note_off_msg.velocity = vel_off
+                            send_midi_message(_midi_note_off_msg, channel=ch)
                             print(f"[MIDI TX] Ch{ch+1} NoteOff{note} (deselect sibling {j+1}, group {group_name})")
             except (KeyError, IndexError, AttributeError) as e:
                 print(f"[WARN] Failed to deselect sibling button {j+1} in group '{group_name}': {e}")
