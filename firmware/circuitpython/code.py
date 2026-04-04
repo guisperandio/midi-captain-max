@@ -732,7 +732,21 @@ def record_tap_tempo(idx, now):
         blink_rate_ms[idx] = ms
         # Extend the active window for this tap so blinking is visible
         tap_active_until[idx] = now + (blink_rate_ms[idx] / 1000.0) * TAP_ACTIVE_WINDOW_MULTIPLIER
-        print(f"[TAP] Button {idx+1} tempo set to {ms} ms ({60_000//ms} BPM approx)")
+        
+        # Calculate and display BPM on screen
+        bpm = 60_000 // ms
+        print(f"[TAP] Button {idx+1} tempo set to {ms} ms ({bpm} BPM)")
+        
+        # Update display with BPM info
+        btn_config = buttons[idx]
+        btn_label = btn_config.get("label", str(idx + 1))
+        set_label_text(button_name_label, btn_label)
+        set_label_text(status_label, f"{bpm} BPM")
+        
+        # Set timeout to return to selected button display after 3 seconds
+        global label_timeout_return_to_select
+        label_timeout_return_to_select = now + LABEL_RETURN_TIMEOUT_SEC
+        
     except (ZeroDivisionError, ValueError) as e:
         print(f"Tap tempo calculation error for button {idx}: {e}")
     except Exception as e:
