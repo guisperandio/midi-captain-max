@@ -437,7 +437,7 @@ if [ "$CODE_ONLY" != true ]; then
     show_progress "Deploying boot.py..."
     BOOT_CHANGES=$(rsync $(rsync_flags) \
         "$DEV_DIR/boot.py" \
-        "$MOUNT_POINT/" | grep -c '^>' || true)
+        "$MOUNT_POINT/" | tee /dev/tty | grep -c '^>' || true)
     CHANGED_FILES=$((CHANGED_FILES + BOOT_CHANGES))
 fi
 
@@ -482,7 +482,8 @@ if [ "$CODE_ONLY" != true ]; then
     wait $DEVICES_PID
     wait $HANDLERS_PID
 
-    # Count changes from temp files
+    # Show and count changes from temp files
+    cat /tmp/deploy_core.$$ /tmp/deploy_devices.$$ /tmp/deploy_handlers.$$ 2>/dev/null || true
     CORE_CHANGES=$(grep -c '^[>*]' /tmp/deploy_core.$$ 2>/dev/null || echo 0)
     DEVICES_CHANGES=$(grep -c '^[>*]' /tmp/deploy_devices.$$ 2>/dev/null || echo 0)
     HANDLERS_CHANGES=$(grep -c '^[>*]' /tmp/deploy_handlers.$$ 2>/dev/null || echo 0)
@@ -530,15 +531,17 @@ if [ "$CODE_ONLY" != true ] && { [ "$SKIP_FONTS" != true ] || [ "$SKIP_LIBS" != 
     [ -n "$FONTS_PID" ] && wait $FONTS_PID
     [ -n "$LIBS_PID" ] && wait $LIBS_PID
 
-    # Count changes from temp files
+# Show and count changes from temp files
     if [ "$SKIP_FONTS" != true ]; then
+        cat /tmp/deploy_fonts.$$ 2>/dev/null || true
         FONTS_CHANGES=$(grep -c '^>' /tmp/deploy_fonts.$$ 2>/dev/null || echo 0)
         FONTS_CHANGES=$(echo "$FONTS_CHANGES" | tr -d '[:space:]')
         FONTS_CHANGES=${FONTS_CHANGES:-0}
         CHANGED_FILES=$((CHANGED_FILES + FONTS_CHANGES))
     fi
-
+    
     if [ "$SKIP_LIBS" != true ]; then
+        cat /tmp/deploy_libs.$$ 2>/dev/null || true
         LIB_CHANGES=$(grep -c '^>' /tmp/deploy_libs.$$ 2>/dev/null || echo 0)
         LIB_CHANGES=$(echo "$LIB_CHANGES" | tr -d '[:space:]')
         LIB_CHANGES=${LIB_CHANGES:-0}
@@ -584,11 +587,11 @@ if [ "$CODE_ONLY" != true ] && [ "$SKIP_CONFIG" != true ]; then
         fi
         if [ -f "$CONFIG_FILE" ]; then
             CONFIG_CHANGE=$(rsync $(rsync_flags) \
-                "$CONFIG_FILE" "$MOUNT_POINT/config.json" | grep -c '^>' || true)
+                "$CONFIG_FILE" "$MOUNT_POINT/config.json" | tee /dev/tty | grep -c '^>' || true)
             CHANGED_FILES=$((CHANGED_FILES + CONFIG_CHANGE))
         else
             CONFIG_CHANGE=$(rsync $(rsync_flags) \
-                "$DEV_DIR/config.json" "$MOUNT_POINT/config.json" | grep -c '^>' || true)
+                "$DEV_DIR/config.json" "$MOUNT_POINT/config.json" | tee /dev/tty | grep -c '^>' || true)
             CHANGED_FILES=$((CHANGED_FILES + CONFIG_CHANGE))
         fi
     else
@@ -597,7 +600,7 @@ if [ "$CODE_ONLY" != true ] && [ "$SKIP_CONFIG" != true ]; then
 
     # Deploy device-specific fallback config (reference only)
     MINI6_CHANGES=$(rsync $(rsync_flags) \
-        "$DEV_DIR/config-mini6.json" "$MOUNT_POINT/config-mini6.json" | grep -c '^>' || true)
+        "$DEV_DIR/config-mini6.json" "$MOUNT_POINT/config-mini6.json" | tee /dev/tty | grep -c '^>' || true)
     CHANGED_FILES=$((CHANGED_FILES + MINI6_CHANGES))
 fi
 
@@ -609,7 +612,7 @@ CODE_CHANGES=$(rsync $(rsync_flags) \
     --exclude='__pycache__' \
     --exclude='experiments' \
     "$DEV_DIR/code.py" \
-    "$MOUNT_POINT/" | grep -c '^>' || true)
+    "$MOUNT_POINT/" | tee /dev/tty | grep -c '^>' || true)
 CHANGED_FILES=$((CHANGED_FILES + CODE_CHANGES))
 
 # 7. Write VERSION file for firmware version display
@@ -619,7 +622,7 @@ show_progress "Writing version information..."
 if [ "$CONTEXT" = "dist" ] && [ -f "$DEV_DIR/VERSION" ]; then
     VERSION=$(cat "$DEV_DIR/VERSION")
     VERSION_CHANGE=$(rsync $(rsync_flags) \
-        "$DEV_DIR/VERSION" "$MOUNT_POINT/VERSION" | grep -c '^>' || true)
+        "$DEV_DIR/VERSION" "$MOUNT_POINT/VERSION" | tee /dev/tty | grep -c '^>' || true)
     CHANGED_FILES=$((CHANGED_FILES + VERSION_CHANGE))
 else
     VERSION=$(git describe --tags --always 2>/dev/null || echo "dev")
