@@ -89,17 +89,23 @@ def update_blink_timers(
             if now >= blink_next_toggle[i]:
                 blink_state[i] = not blink_state[i]
                 set_button_state_func(i + 1, blink_state[i])
-                
-                # Use different durations for on vs off to match tempo
-                # ON = short flash (100ms), OFF = rest of beat interval
+
+                # Dynamic flash duration: scale with tempo (20% of beat, clamped 50-200ms)
+                # Fast tempos get shorter flashes, slow tempos get longer flashes
+                # This matches premium pedal behavior (Strymon, Eventide, etc.)
+                beat_interval = blink_rate_ms[i] / 1000.0
+
                 if blink_state[i]:
-                    # Just turned ON - flash briefly
-                    blink_next_toggle[i] = now + 0.1  # 100ms flash
+                    # Just turned ON - flash for 20% of beat interval
+                    # Clamp: 50ms minimum (visible at 1200 BPM), 200ms maximum (visible at slow tempos)
+                    flash_duration = max(0.05, min(0.2, beat_interval * 0.2))
+                    blink_next_toggle[i] = now + flash_duration
                 else:
-                    # Just turned OFF - wait for next beat
-                    beat_interval = blink_rate_ms[i] / 1000.0
-                    flash_duration = 0.1
-                    blink_next_toggle[i] = now + max(0.05, beat_interval - flash_duration)
+                    # Just turned OFF - wait for next beat (remaining 80% of interval)
+                    # No minimum clamp on OFF duration to support fast tempos (up to 1200 BPM)
+                    flash_duration = max(0.05, min(0.2, beat_interval * 0.2))
+                    off_duration = beat_interval - flash_duration
+                    blink_next_toggle[i] = now + max(0.0, off_duration)
         except (IndexError, ZeroDivisionError, TypeError) as e:
             # Defensive: don't let blinking crash the loop
             print(f"[WARN] Blink timing failed for button {i}: {e}")
