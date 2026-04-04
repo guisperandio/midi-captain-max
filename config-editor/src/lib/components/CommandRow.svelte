@@ -50,11 +50,11 @@
       <div class="field">
         <label>Type</label>
         <select value={(command as MidiCommand).type ?? 'cc'} onchange={(e) => updateMidiField('type', (e.target as HTMLSelectElement).value as MessageType)}>
-          <option value="cc">🎛️ CC</option>
-          <option value="note">🎹 Note</option>
-          <option value="pc">📋 PC</option>
-          <option value="pc_inc">⬆️ PC+</option>
-          <option value="pc_dec">⬇️ PC-</option>
+          <option value="cc">CC</option>
+          <option value="note">Note</option>
+          <option value="pc">PC</option>
+          <option value="pc_inc">PC+</option>
+          <option value="pc_dec">PC-</option>
         </select>
       </div>
 

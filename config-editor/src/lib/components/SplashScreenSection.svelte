@@ -68,7 +68,7 @@
   </label>
 
   <div class="info-card">
-    <div class="info-header">📁 Setup Instructions</div>
+    <div class="info-header">Setup Instructions</div>
     <ol class="info-list">
       <li>Create a 240×240 pixel BMP image</li>
       <li>Name it <code>splash.bmp</code></li>
@@ -78,7 +78,7 @@
   </div>
 
   <div class="info-card">
-    <div class="info-header">🛠️ Generate a Splash</div>
+    <div class="info-header">Generate a Splash</div>
     <p class="info-text">Use the included script to create a text-based splash:</p>
     <code class="code-block">python3 tools/generate_splash.py "MY BAND" "Live Setup"</code>
     <p class="info-text info-note">
