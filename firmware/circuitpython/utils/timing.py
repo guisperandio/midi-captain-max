@@ -102,6 +102,8 @@ class AverageTimer:
             name: Timer name for logging
             samples: Number of samples to track for moving average
         """
+        if not isinstance(samples, int) or samples <= 0:
+            raise ValueError(f"samples must be a positive integer, got {samples}")
         self.name = name
         self.samples = samples
         self.times = []

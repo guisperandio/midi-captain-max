@@ -11,6 +11,8 @@
 #   --eject       Eject device after deploy (forces clean reload)
 #   --fresh       Overwrite config.json even if it exists
 #   --dry-run     Preview changes without copying files
+#   --fast        Ultra-fast: only copy if file size changed
+#   --verify      Thorough: use content checksums (slow)
 #   --code-only   Only deploy code.py (fastest iteration)
 #   --skip-fonts  Skip font deployment
 #   --skip-libs   Skip library deployment
@@ -375,13 +377,18 @@ echo "🚀 Deploying changed files..."
 echo ""
 
 # Calculate total steps based on what's being deployed
-TOTAL_STEPS=7
 if [ "$CODE_ONLY" = true ]; then
     TOTAL_STEPS=2  # VERSION + code.py
-elif [ "$SKIP_FONTS" = true ] && [ "$SKIP_LIBS" = true ]; then
-    TOTAL_STEPS=6  # Remove fonts/libs step
-elif [ "$SKIP_CONFIG" = true ]; then
-    TOTAL_STEPS=6  # Remove config step
+else
+    TOTAL_STEPS=7
+
+    if [ "$SKIP_FONTS" = true ] && [ "$SKIP_LIBS" = true ]; then
+        TOTAL_STEPS=$((TOTAL_STEPS - 1))  # Remove fonts/libs step
+    fi
+
+    if [ "$SKIP_CONFIG" = true ]; then
+        TOTAL_STEPS=$((TOTAL_STEPS - 1))  # Remove config step
+    fi
 fi
 
 CURRENT_STEP=0
@@ -413,7 +420,7 @@ rsync_flags() {
     echo "$flags"
 }
 
-# Deploy dependencies first, code.py last. This ensures all imports are
+# Deploy dependencies first, code.py near the end. This ensures all imports are
 # in place before the main entry point lands on the device.
 #
 # NOTE: This script deploys raw .py source files for rapid development.
@@ -437,7 +444,7 @@ if [ "$CODE_ONLY" != true ]; then
     show_progress "Deploying boot.py..."
     BOOT_CHANGES=$(rsync $(rsync_flags) \
         "$DEV_DIR/boot.py" \
-        "$MOUNT_POINT/" | tee /dev/tty | grep -c '^>' || true)
+        "$MOUNT_POINT/" | tee /dev/fd/2 | grep -c '^>' || true)
     CHANGED_FILES=$((CHANGED_FILES + BOOT_CHANGES))
 fi
 
@@ -576,7 +583,7 @@ if [ "$CODE_ONLY" != true ] && [ "$SKIP_CONFIG" != true ]; then
     fi
 fi
 
-# 5. Deploy config ONLYif it doesn't exist (preserve user customizations)
+# 5. Deploy config ONLY if it doesn't exist (preserve user customizations)
 if [ "$CODE_ONLY" != true ] && [ "$SKIP_CONFIG" != true ]; then
     show_progress "Deploying configuration files..."
     if [ ! -f "$MOUNT_POINT/config.json" ] || [ "$DO_FRESH" = true ]; then
@@ -587,11 +594,11 @@ if [ "$CODE_ONLY" != true ] && [ "$SKIP_CONFIG" != true ]; then
         fi
         if [ -f "$CONFIG_FILE" ]; then
             CONFIG_CHANGE=$(rsync $(rsync_flags) \
-                "$CONFIG_FILE" "$MOUNT_POINT/config.json" | tee /dev/tty | grep -c '^>' || true)
+                "$CONFIG_FILE" "$MOUNT_POINT/config.json" | tee /dev/fd/2 | grep -c '^>' || true)
             CHANGED_FILES=$((CHANGED_FILES + CONFIG_CHANGE))
         else
             CONFIG_CHANGE=$(rsync $(rsync_flags) \
-                "$DEV_DIR/config.json" "$MOUNT_POINT/config.json" | tee /dev/tty | grep -c '^>' || true)
+                "$DEV_DIR/config.json" "$MOUNT_POINT/config.json" | tee /dev/fd/2 | grep -c '^>' || true)
             CHANGED_FILES=$((CHANGED_FILES + CONFIG_CHANGE))
         fi
     else
@@ -600,7 +607,7 @@ if [ "$CODE_ONLY" != true ] && [ "$SKIP_CONFIG" != true ]; then
 
     # Deploy device-specific fallback config (reference only)
     MINI6_CHANGES=$(rsync $(rsync_flags) \
-        "$DEV_DIR/config-mini6.json" "$MOUNT_POINT/config-mini6.json" | tee /dev/tty | grep -c '^>' || true)
+        "$DEV_DIR/config-mini6.json" "$MOUNT_POINT/config-mini6.json" | tee /dev/fd/2 | grep -c '^>' || true)
     CHANGED_FILES=$((CHANGED_FILES + MINI6_CHANGES))
 fi
 
@@ -612,7 +619,7 @@ CODE_CHANGES=$(rsync $(rsync_flags) \
     --exclude='__pycache__' \
     --exclude='experiments' \
     "$DEV_DIR/code.py" \
-    "$MOUNT_POINT/" | tee /dev/tty | grep -c '^>' || true)
+    "$MOUNT_POINT/" | tee /dev/fd/2 | grep -c '^>' || true)
 CHANGED_FILES=$((CHANGED_FILES + CODE_CHANGES))
 
 # 7. Write VERSION file for firmware version display
@@ -622,7 +629,7 @@ show_progress "Writing version information..."
 if [ "$CONTEXT" = "dist" ] && [ -f "$DEV_DIR/VERSION" ]; then
     VERSION=$(cat "$DEV_DIR/VERSION")
     VERSION_CHANGE=$(rsync $(rsync_flags) \
-        "$DEV_DIR/VERSION" "$MOUNT_POINT/VERSION" | tee /dev/tty | grep -c '^>' || true)
+        "$DEV_DIR/VERSION" "$MOUNT_POINT/VERSION" | tee /dev/fd/2 | grep -c '^>' || true)
     CHANGED_FILES=$((CHANGED_FILES + VERSION_CHANGE))
 else
     VERSION=$(git describe --tags --always 2>/dev/null || echo "dev")

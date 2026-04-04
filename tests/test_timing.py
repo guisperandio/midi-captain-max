@@ -108,6 +108,17 @@ class TestPerformanceMonitor:
 class TestAverageTimer:
     """Test AverageTimer class."""
 
+    def test_validates_samples_parameter(self):
+        """AverageTimer should validate samples parameter on construction."""
+        with pytest.raises(ValueError, match="samples must be a positive integer"):
+            AverageTimer("test", samples=0)
+        
+        with pytest.raises(ValueError, match="samples must be a positive integer"):
+            AverageTimer("test", samples=-5)
+        
+        with pytest.raises(ValueError, match="samples must be a positive integer"):
+            AverageTimer("test", samples=1.5)
+
     def test_tracks_multiple_samples(self):
         """AverageTimer should track multiple timing samples."""
         timer = AverageTimer("test", samples=10)
@@ -241,47 +252,71 @@ class TestFormatDuration:
 class TestRealWorldScenarios:
     """Test timing utilities in realistic scenarios."""
 
-    def test_main_loop_monitoring(self, capsys):
+    def test_main_loop_monitoring(self, capsys, monkeypatch):
         """Simulate monitoring a main loop."""
         timer = AverageTimer("Main Loop", samples=10)
+        monotonic_values = iter([
+            0.000, 0.001,  # Iteration 1: 1ms
+            0.001, 0.002,  # Iteration 2: 1ms
+            0.002, 0.003,  # Iteration 3: 1ms
+            0.003, 0.004,  # Iteration 4: 1ms
+            0.004, 0.005,  # Iteration 5: 1ms
+            0.005, 0.006,  # Iteration 6: 1ms
+            0.006, 0.007,  # Iteration 7: 1ms
+            0.007, 0.008,  # Iteration 8: 1ms
+            0.008, 0.009,  # Iteration 9: 1ms
+            0.009, 0.010,  # Iteration 10: 1ms
+        ])
+        monkeypatch.setattr(time, "monotonic", lambda: next(monotonic_values))
         
         # Simulate 10 loop iterations
         for i in range(10):
             with timer:
-                time.sleep(0.001)  # 1ms per iteration
+                pass
         
         assert timer.sample_count == 10
         avg = timer.average_ms()
-        assert 0.5 < avg < 5.0  # Should be around 1ms (with some tolerance)
+        assert avg == pytest.approx(1.0)
         
         timer.report()
         captured = capsys.readouterr()
         assert "Main Loop" in captured.out
 
-    def test_performance_budget_checking(self, capsys):
+    def test_performance_budget_checking(self, capsys, monkeypatch):
         """Simulate checking if operation stays within performance budget."""
+        monotonic_values = iter([
+            0.000, 0.002,  # 2ms - under budget
+            0.010, 0.020,  # 10ms - over budget
+        ])
+        monkeypatch.setattr(time, "monotonic", lambda: next(monotonic_values))
+        
         # Budget: MIDI processing should complete in <5ms
         with PerformanceMonitor("MIDI processing", threshold_ms=5, enabled=True):
-            time.sleep(0.002)  # 2ms - under budget
+            pass
         
         captured = capsys.readouterr()
         assert captured.out == ""  # No warning
         
         # Now exceed budget
         with PerformanceMonitor("MIDI flooding", threshold_ms=5, enabled=True):
-            time.sleep(0.010)  # 10ms - over budget
+            pass
         
         captured = capsys.readouterr()
         assert "⚠️" in captured.out
         assert "MIDI flooding" in captured.out
 
-    def test_conditional_monitoring(self, capsys):
+    def test_conditional_monitoring(self, capsys, monkeypatch):
         """Simulate enabling/disabling monitoring based on flag."""
+        monotonic_values = iter([
+            0.000, 0.100,  # 100ms while monitoring disabled
+            0.200, 0.210,  # 10ms while monitoring enabled
+        ])
+        monkeypatch.setattr(time, "monotonic", lambda: next(monotonic_values))
         ENABLE_MONITORING = False
         
         # Slow operation, but monitoring disabled
         with PerformanceMonitor("test", threshold_ms=1, enabled=ENABLE_MONITORING):
-            time.sleep(0.100)  # 100ms
+            pass
         
         captured = capsys.readouterr()
         assert captured.out == ""  # No output when disabled
@@ -290,7 +325,7 @@ class TestRealWorldScenarios:
         ENABLE_MONITORING = True
         
         with PerformanceMonitor("test", threshold_ms=1, enabled=ENABLE_MONITORING):
-            time.sleep(0.010)  # 10ms
+            pass
         
         captured = capsys.readouterr()
         assert "⚠️" in captured.out  # Should warn now

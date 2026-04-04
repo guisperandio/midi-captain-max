@@ -104,7 +104,7 @@
     transition: all 0.2s ease;
   }
 
-  .toggle-track:hover:not(.disabled):not(.checked) {
+  .toggle-container:not(.disabled) .toggle-track:hover:not(.checked) {
     border-color: #444444;
     background: #222222;
   }
@@ -115,7 +115,7 @@
     box-shadow: 0 0 8px rgba(0, 212, 170, 0.3);
   }
 
-  .toggle-track.checked:hover:not(.disabled) {
+  .toggle-container:not(.disabled) .toggle-track.checked:hover {
     background: #00d4b4;
     border-color: #00d4b4;
     box-shadow: 0 0 12px rgba(0, 212, 170, 0.4);
