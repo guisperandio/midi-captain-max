@@ -8,7 +8,6 @@ import pytest
 import sys
 import time
 from pathlib import Path
-from io import StringIO
 
 # Add the firmware directory to the path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "firmware" / "circuitpython"))
@@ -32,10 +31,13 @@ class TestMeasureTime:
         result = measure_time(returns_42, "test", threshold_ms=1000)
         assert result == 42
 
-    def test_warns_over_threshold(self, capsys):
+    def test_warns_over_threshold(self, capsys, monkeypatch):
         """measure_time should print warning if over threshold."""
+        # Mock time to avoid flaky tests on slow CI
+        mock_times = iter([0.0, 0.015])  # 15ms elapsed
+        monkeypatch.setattr(time, "monotonic", lambda: next(mock_times))
+        
         def slow_func():
-            time.sleep(0.015)  # 15ms
             return "done"
         
         result = measure_time(slow_func, "slow_op", threshold_ms=10)
@@ -67,10 +69,14 @@ class TestPerformanceMonitor:
             time.sleep(0.001)
         # No assertion needed - just testing syntax works
 
-    def test_warns_over_threshold(self, capsys):
+    def test_warns_over_threshold(self, capsys, monkeypatch):
         """PerformanceMonitor should warn if operation exceeds threshold."""
+        # Mock time to avoid flaky tests on slow CI
+        mock_times = iter([0.0, 0.015])  # 15ms elapsed
+        monkeypatch.setattr(time, "monotonic", lambda: next(mock_times))
+        
         with PerformanceMonitor("slow_operation", threshold_ms=10, enabled=True):
-            time.sleep(0.015)  # 15ms
+            pass
         
         captured = capsys.readouterr()
         assert "⚠️" in captured.out
@@ -136,21 +142,30 @@ class TestAverageTimer:
         
         assert timer.min_ms() == 10.0
 
-    def test_limits_sample_count(self):
+    def test_limits_sample_count(self, monkeypatch):
         """AverageTimer should keep only most recent N samples."""
         timer = AverageTimer("test", samples=3)
         
-        # Add more samples than limit
+        # Mock time to provide deterministic timing values
+        clock_values = iter([
+            0.000, 0.001,  # 1ms
+            1.000, 1.002,  # 2ms
+            2.000, 2.003,  # 3ms
+            3.000, 3.004,  # 4ms
+            4.000, 4.005,  # 5ms
+        ])
+        monkeypatch.setattr(time, "monotonic", lambda: next(clock_values))
+        
+        # Drive timer through context manager to test actual trimming behavior
         for i in range(5):
-            timer.times.append(float(i))
+            with timer:
+                pass
+            # Verify length never exceeds sample limit
+            assert len(timer.times) == min(i + 1, timer.samples)
         
-        # Should keep only last 3 samples (trimmed in __exit__)
-        # But we added directly, so manually trim for this test
-        while len(timer.times) > timer.samples:
-            timer.times.pop(0)
-        
+        # After 5 iterations, should keep only last 3 samples (order doesn't matter in ring buffer)
         assert len(timer.times) == 3
-        assert timer.times == [2.0, 3.0, 4.0]  # Last 3
+        assert sorted(timer.times) == pytest.approx([3.0, 4.0, 5.0])
 
     def test_reset_clears_samples(self):
         """AverageTimer.reset() should clear all samples."""

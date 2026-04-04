@@ -105,6 +105,8 @@ class AverageTimer:
         self.name = name
         self.samples = samples
         self.times = []
+        self._write_index = 0  # Ring buffer write position
+        self._is_full = False  # Track if buffer has wrapped
         self.start_time = None
     
     def __enter__(self):
@@ -116,11 +118,19 @@ class AverageTimer:
         """Record timing sample."""
         if self.start_time is not None:
             elapsed = (time.monotonic() - self.start_time) * 1000
-            self.times.append(elapsed)
             
-            # Keep only most recent samples
-            if len(self.times) > self.samples:
-                self.times.pop(0)
+            # Use ring buffer for O(1) insertion instead of O(n) pop(0)
+            if self._is_full:
+                # Overwrite oldest sample
+                self.times[self._write_index] = elapsed
+            else:
+                # Still filling buffer
+                self.times.append(elapsed)
+                if len(self.times) >= self.samples:
+                    self._is_full = True
+            
+            # Advance write index with wrapping
+            self._write_index = (self._write_index + 1) % self.samples
         
         return False  # Don't suppress exceptions
     
@@ -150,6 +160,8 @@ class AverageTimer:
     def reset(self):
         """Clear all recorded samples."""
         self.times = []
+        self._write_index = 0
+        self._is_full = False
     
     def report(self):
         """Print performance summary."""
