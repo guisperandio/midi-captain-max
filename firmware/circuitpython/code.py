@@ -1011,7 +1011,7 @@ def _send_tap_midi_fast(action_cfg, btn_num, idx):
     elif isinstance(action_cfg, list):
         commands = action_cfg
     else:
-        print(f"[WARN] Invalid tap action_cfg type (button {btn_num}): {type(action_cfg)}")
+        # Fail silently - no prints in critical timing path
         return
 
     # Send each command immediately - NO PRINTS, NO DELAYS, NO DISPLAY UPDATES
@@ -1742,15 +1742,20 @@ def handle_switches():
 
                     # Bookkeeping after MIDI (doesn't affect timing)
                     record_tap_tempo(idx, now)
-                    # Start blinking for tap mode - short flash at tempo
+                    # Start blinking for tap mode - dynamic flash at 20% of tempo
                     blink_state[idx] = True
-                    blink_next_toggle[idx] = now + 0.1  # 100ms flash
+                    if blink_rate_ms[idx] > 0:
+                        beat_interval = blink_rate_ms[idx] / 1000.0
+                        flash_duration = max(0.05, min(0.2, beat_interval * 0.2))
+                        blink_next_toggle[idx] = now + flash_duration
+                    else:
+                        blink_next_toggle[idx] = now + 0.1  # Fallback for first tap
 
                     # Skip normal press dispatch below (already sent via fast path)
-                    continue
+                    # But allow long-press logic to run by not using continue here
 
                 # Dispatch press event
-                if not long_enabled:
+                if not long_enabled and mode != "tap":
                     # No long-press: execute press action immediately
                     if mode in ("toggle", "normal", "select"):
                         # Advance keytime for toggle modes

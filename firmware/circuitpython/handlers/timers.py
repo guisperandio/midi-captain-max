@@ -102,8 +102,10 @@ def update_blink_timers(
                     blink_next_toggle[i] = now + flash_duration
                 else:
                     # Just turned OFF - wait for next beat (remaining 80% of interval)
+                    # No minimum clamp on OFF duration to support fast tempos (up to 1200 BPM)
                     flash_duration = max(0.05, min(0.2, beat_interval * 0.2))
-                    blink_next_toggle[i] = now + max(0.05, beat_interval - flash_duration)
+                    off_duration = beat_interval - flash_duration
+                    blink_next_toggle[i] = now + max(0.0, off_duration)
         except (IndexError, ZeroDivisionError, TypeError) as e:
             # Defensive: don't let blinking crash the loop
             print(f"[WARN] Blink timing failed for button {i}: {e}")
