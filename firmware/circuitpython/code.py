@@ -61,6 +61,8 @@ from core.constants import (
     TAP_HISTORY_SIZE, TAP_MIN_INTERVAL_MS, TAP_MAX_INTERVAL_MS,
     TAP_DEFAULT_RATE_MS, TAP_ACTIVE_WINDOW_MULTIPLIER,
     VBAT_FILTER_ALPHA, PC_VALUES_SIZE,
+    SLOW_OPERATION_THRESHOLD_MS, SLOW_LOOP_THRESHOLD_MS,
+    MAX_MIDI_MESSAGES_PER_LOOP,
     clamp_midi_value, clamp_tap_interval_ms
 )
 
@@ -665,6 +667,14 @@ tap_timestamps = [[] for _ in range(BUTTON_COUNT)]
 # Per-button tap active expiry (monotonic seconds). While now < tap_active_until[i]
 # the button will visually blink.
 tap_active_until = [0.0] * BUTTON_COUNT
+
+# Performance optimization: batch LED updates
+# Set led_dirty = True whenever LEDs change, then call pixels.show() once at end of loop
+led_dirty = False
+
+# Optional performance monitoring (enable for debugging slow operations)
+ENABLE_PERFORMANCE_MONITORING = False  # Set True to enable timing warnings
+last_loop_time = time.monotonic()
 
 def record_tap_tempo(idx, now):
     """Record a tap for button index `idx` (0-based) at monotonic time `now`.
@@ -1289,8 +1299,9 @@ def set_button_state(switch_idx, on):
     """Update LED and display for a button (1-indexed).
 
     Delegates to handlers.button module for actual implementation.
+    Marks LEDs as dirty to trigger batched update at end of loop.
     """
-    global blink_state, blink_next_toggle
+    global blink_state, blink_next_toggle, led_dirty
     blink_state, blink_next_toggle = button_handlers.set_button_state(
         switch_idx,
         on,
@@ -1305,6 +1316,7 @@ def set_button_state(switch_idx, on):
         switch_to_led,
         get_button_color
     )
+    led_dirty = True
 
 
 def init_leds():
@@ -1391,32 +1403,41 @@ def handle_midi():
 
     Checks both USB and TRS/serial MIDI for incoming messages (like Helmut's
     original firmware). Some pedals connected via TRS need bidirectional comms.
-
-    Drains each port's buffer completely to avoid overflow when receiving
-    rapid message sequences (e.g., when switching scene/bank on external device).
-
+    
+    Processes up to MAX_MIDI_MESSAGES_PER_LOOP messages per loop iteration to
+    prevent MIDI flooding from starving other operations (button scanning,
+    display updates). Any remaining messages will be processed in next iteration.
+    
     During the startup grace period, incoming messages are drained from the
     buffers but NOT processed. This prevents external devices (e.g. Quad Cortex)
     from overriding default_selected button state with their power-on MIDI burst.
+    
+    This is critical for live performance reliability - even during a scene change
+    that sends 100+ CC messages, buttons remain responsive.
     """
+    global led_dirty
+    
     # Check if we're still in the startup grace period
     in_grace_period = (time.monotonic() - startup_time_monotonic) < STARTUP_MIDI_GRACE_PERIOD_SEC
-
-    # Drain USB MIDI buffer completely
-    while True:
+    messages_processed = 0
+    
+    # Process USB MIDI (up to limit)
+    while messages_processed < MAX_MIDI_MESSAGES_PER_LOOP:
         msg = midi_usb.receive()
         if msg is None:
             break
         if not in_grace_period:
             _process_incoming_midi(msg)
+        messages_processed += 1
 
-    # Drain TRS/serial MIDI buffer completely
-    while True:
+    # Process TRS/serial MIDI (up to remaining budget)
+    while messages_processed < MAX_MIDI_MESSAGES_PER_LOOP:
         msg = midi_trs.receive()
         if msg is None:
             break
         if not in_grace_period:
             _process_incoming_midi(msg)
+        messages_processed += 1
 
 
 def handle_bank_switch(target_bank_idx=None):
@@ -1428,6 +1449,7 @@ def handle_bank_switch(target_bank_idx=None):
     Returns:
         True if switch succeeded, False otherwise
     """
+    global led_dirty, buttons, button_states, label_timeout_return_to_select
     global button_states, buttons
 
     if not bank_manager or len(banks) == 0:
@@ -1462,7 +1484,8 @@ def handle_bank_switch(target_bank_idx=None):
             base = led_idx * 3
             for j in range(3):
                 pixels[base + j] = color
-    pixels.show()
+    # Mark LEDs dirty - will be flushed at end of loop
+    led_dirty = True
 
     # Use non-blocking delay to avoid stalling main loop
     time.sleep(0.1)
@@ -1669,6 +1692,7 @@ def handle_switches():
     State management (toggle, momentary, keytimes, select_group) is handled
     here, while MIDI dispatch is delegated to _send_action_from_cfg().
     """
+    global led_dirty
     # STD10: index 0 is encoder push, 1-10 are footswitches
     # Mini6: indices 0-5 are footswitches (no encoder)
     start_idx = 1 if HAS_ENCODER else 0
@@ -1843,7 +1867,7 @@ def handle_switches():
                                 for j in range(3):
                                     if base + j < LED_COUNT:
                                         pixels[base + j] = long_press_rgb
-                                pixels.show()
+                                led_dirty = True
                         else:
                             # Normal case: restore to regular state color
                             set_button_state(btn_num, btn_state.state)
@@ -1941,7 +1965,7 @@ def handle_switches():
                             for j in range(3):
                                 if base + j < LED_COUNT:
                                     pixels[base + j] = long_press_rgb
-                            pixels.show()
+                            led_dirty = True
                     else:
                         # No long_press_color - use normal ON state
                         set_button_state(btn_num, True)
@@ -1962,7 +1986,7 @@ def handle_switches():
                             for j in range(3):
                                 if base + j < LED_COUNT:
                                     pixels[base + j] = long_press_rgb
-                            pixels.show()
+                            led_dirty = True
 
                 short_action_executed[idx] = True
 
@@ -2205,6 +2229,8 @@ def handle_serial_commands():
 # =============================================================================
 
 while True:
+    loop_start = time.monotonic() if ENABLE_PERFORMANCE_MONITORING else 0
+    
     handle_serial_commands()
     handle_midi()
     handle_switches()
@@ -2217,3 +2243,14 @@ while True:
         handle_encoder()
     if HAS_EXPRESSION:
         handle_expression()
+    
+    # Batch LED update: only call pixels.show() once per loop if LEDs changed
+    if led_dirty:
+        pixels.show()
+        led_dirty = False
+    
+    # Optional performance monitoring
+    if ENABLE_PERFORMANCE_MONITORING:
+        loop_time_ms = (time.monotonic() - loop_start) * 1000
+        if loop_time_ms > SLOW_LOOP_THRESHOLD_MS:
+            print(f"⚠️ Slow loop: {loop_time_ms:.1f}ms")

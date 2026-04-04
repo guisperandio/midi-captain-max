@@ -71,7 +71,8 @@ def set_button_state(
         for j in range(3):
             if base + j < led_count:
                 pixels[base + j] = rgb
-        pixels.show()
+        # Don't call pixels.show() here - will be batched at end of main loop
+        # This prevents multiple I2C transactions per loop iteration
 
     # If this button uses 'tap' led_mode, manage blink state/timers
     try:
