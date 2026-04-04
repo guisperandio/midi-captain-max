@@ -61,7 +61,7 @@ from core.constants import (
     TAP_HISTORY_SIZE, TAP_MIN_INTERVAL_MS, TAP_MAX_INTERVAL_MS,
     TAP_DEFAULT_RATE_MS, TAP_ACTIVE_WINDOW_MULTIPLIER,
     VBAT_FILTER_ALPHA, PC_VALUES_SIZE,
-    SLOW_OPERATION_THRESHOLD_MS, SLOW_LOOP_THRESHOLD_MS,
+    SLOW_LOOP_THRESHOLD_MS,
     MAX_MIDI_MESSAGES_PER_LOOP,
     clamp_midi_value, clamp_tap_interval_ms
 )
@@ -674,7 +674,6 @@ led_dirty = False
 
 # Optional performance monitoring (enable for debugging slow operations)
 ENABLE_PERFORMANCE_MONITORING = False  # Set True to enable timing warnings
-last_loop_time = time.monotonic()
 
 def record_tap_tempo(idx, now):
     """Record a tap for button index `idx` (0-based) at monotonic time `now`.
@@ -1408,36 +1407,50 @@ def handle_midi():
     prevent MIDI flooding from starving other operations (button scanning,
     display updates). Any remaining messages will be processed in next iteration.
     
-    During the startup grace period, incoming messages are drained from the
+    During the startup grace period, incoming messages are FULLY DRAINED from
     buffers but NOT processed. This prevents external devices (e.g. Quad Cortex)
     from overriding default_selected button state with their power-on MIDI burst.
     
-    This is critical for live performance reliability - even during a scene change
-    that sends 100+ CC messages, buttons remain responsive.
+    After grace period, process up to MAX_MIDI_MESSAGES_PER_LOOP per iteration
+    for live performance reliability - even during scene changes with 100+ CC
+    messages, buttons remain responsive.
     """
-    global led_dirty
-    
     # Check if we're still in the startup grace period
     in_grace_period = (time.monotonic() - startup_time_monotonic) < STARTUP_MIDI_GRACE_PERIOD_SEC
-    messages_processed = 0
     
-    # Process USB MIDI (up to limit)
-    while messages_processed < MAX_MIDI_MESSAGES_PER_LOOP:
-        msg = midi_usb.receive()
-        if msg is None:
-            break
-        if not in_grace_period:
+    if in_grace_period:
+        # During grace period: fully drain all messages without processing
+        # (no per-loop limit - must drain entire buffer to prevent delayed bursts)
+        while True:
+            msg = midi_usb.receive()
+            if msg is None:
+                break
+            # Message discarded - not processed during grace period
+        
+        while True:
+            msg = midi_trs.receive()
+            if msg is None:
+                break
+            # Message discarded - not processed during grace period
+    else:
+        # After grace period: process up to MAX_MIDI_MESSAGES_PER_LOOP per iteration
+        messages_processed = 0
+        
+        # Process USB MIDI (up to limit)
+        while messages_processed < MAX_MIDI_MESSAGES_PER_LOOP:
+            msg = midi_usb.receive()
+            if msg is None:
+                break
             _process_incoming_midi(msg)
-        messages_processed += 1
+            messages_processed += 1
 
-    # Process TRS/serial MIDI (up to remaining budget)
-    while messages_processed < MAX_MIDI_MESSAGES_PER_LOOP:
-        msg = midi_trs.receive()
-        if msg is None:
-            break
-        if not in_grace_period:
+        # Process TRS/serial MIDI (up to remaining budget)
+        while messages_processed < MAX_MIDI_MESSAGES_PER_LOOP:
+            msg = midi_trs.receive()
+            if msg is None:
+                break
             _process_incoming_midi(msg)
-        messages_processed += 1
+            messages_processed += 1
 
 
 def handle_bank_switch(target_bank_idx=None):
@@ -1450,7 +1463,6 @@ def handle_bank_switch(target_bank_idx=None):
         True if switch succeeded, False otherwise
     """
     global led_dirty, buttons, button_states, label_timeout_return_to_select
-    global button_states, buttons
 
     if not bank_manager or len(banks) == 0:
         return False
