@@ -863,17 +863,17 @@ display.show(main_group)
 # Track last activity time for idle timeout splash
 last_activity_time = time.monotonic()
 is_showing_splash = False
+needs_wake_from_splash = False  # Deferred wake flag to avoid blocking MIDI
 idle_timeout_enabled = splash_config.get("enabled", True)
 idle_timeout_seconds = splash_config.get("idle_timeout_seconds", 0)  # 0 = disabled
 
 def reset_activity_timer():
     """Reset the idle activity timer (called on any button press)."""
-    global last_activity_time, is_showing_splash
+    global last_activity_time, needs_wake_from_splash
     last_activity_time = time.monotonic()
-    # Wake from splash if showing
+    # Schedule wake from splash if showing (deferred to end of loop to avoid blocking MIDI)
     if is_showing_splash:
-        is_showing_splash = False
-        display.show(main_group)
+        needs_wake_from_splash = True
 
 def update_idle_timeout():
     """Check if idle timeout expired and show splash if needed."""
@@ -2317,6 +2317,12 @@ while True:
         handle_encoder()
     if HAS_EXPRESSION:
         handle_expression()
+    
+    # Wake from splash screen (deferred until after MIDI processing to avoid input lag)
+    if needs_wake_from_splash:
+        is_showing_splash = False
+        needs_wake_from_splash = False
+        display.show(main_group)
     
     # Batch LED update: only call pixels.show() once per loop if LEDs changed
     if led_dirty:
