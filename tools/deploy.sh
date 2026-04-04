@@ -295,45 +295,56 @@ echo "🚀 Deploying changed files..."
 # production firmware. See .github/workflows/ci.yml for the compile step.
 #
 # rsync flags:
-# --checksum: compare by content, not just timestamp (more reliable for USB drives)
+# -a: archive mode (preserve permissions)
+# --checksum: compare by content hash, not timestamp (only copies changed files)
 # --inplace: minimize file rewrites
-# --itemize-changes: show what changed
+# --itemize-changes: show what changed (suppresses output for unchanged files)
+# No -v flag: reduces noise, only shows actual changes via --itemize-changes
+
+# Track changed files for summary
+CHANGED_FILES=0
 
 # 1. boot.py first (keeps autoreload disabled)
-rsync -av --checksum --inplace --itemize-changes \
+BOOT_CHANGES=$(rsync -a --checksum --inplace --itemize-changes \
     "$DEV_DIR/boot.py" \
-    "$MOUNT_POINT/"
+    "$MOUNT_POINT/" | grep -c '^>' || true)
+CHANGED_FILES=$((CHANGED_FILES + BOOT_CHANGES))
 
 # 2. Core modules, device definitions, and fonts
 # --delete removes stale files from the device (e.g. old .py source when
 # deploying compiled .mpy from a package, or old .mpy when deploying .py
 # source from the dev repo). Without --delete, both forms can coexist on
 # the device and CircuitPython may load the wrong one, causing ImportErrors.
-rsync -av --checksum --inplace --itemize-changes --delete \
+CORE_CHANGES=$(rsync -a --checksum --inplace --itemize-changes --delete \
     --exclude='.DS_Store' \
     --exclude='*.pyc' \
     --exclude='__pycache__' \
-    "$DEV_DIR/core/" "$MOUNT_POINT/core/"
+    "$DEV_DIR/core/" "$MOUNT_POINT/core/" | grep -c '^[>*]' || true)
+CHANGED_FILES=$((CHANGED_FILES + CORE_CHANGES))
 
-rsync -av --checksum --inplace --itemize-changes --delete \
+DEVICES_CHANGES=$(rsync -a --checksum --inplace --itemize-changes --delete \
     --exclude='.DS_Store' \
     --exclude='*.pyc' \
     --exclude='__pycache__' \
-    "$DEV_DIR/devices/" "$MOUNT_POINT/devices/"
+    "$DEV_DIR/devices/" "$MOUNT_POINT/devices/" | grep -c '^[>*]' || true)
+CHANGED_FILES=$((CHANGED_FILES + DEVICES_CHANGES))
 
-rsync -av --checksum --inplace --itemize-changes --delete \
+HANDLERS_CHANGES=$(rsync -a --checksum --inplace --itemize-changes --delete \
     --exclude='.DS_Store' \
     --exclude='*.pyc' \
     --exclude='__pycache__' \
-    "$DEV_DIR/handlers/" "$MOUNT_POINT/handlers/"
+    "$DEV_DIR/handlers/" "$MOUNT_POINT/handlers/" | grep -c '^[>*]' || true)
+CHANGED_FILES=$((CHANGED_FILES + HANDLERS_CHANGES))
 
-rsync -av --checksum --inplace --itemize-changes \
+FONTS_CHANGES=$(rsync -a --checksum --inplace --itemize-changes \
     --exclude='.DS_Store' \
-    "$DEV_DIR/fonts/" "$MOUNT_POINT/fonts/"
+    "$DEV_DIR/fonts/" "$MOUNT_POINT/fonts/" | grep -c '^>' || true)
+CHANGED_FILES=$((CHANGED_FILES + FONTS_CHANGES))
 
-rsync -av --checksum --inplace --itemize-changes \
+LIB_CHANGES=$(rsync -a --checksum --inplace --itemize-changes \
     --exclude='.DS_Store' \
-    "$DEV_DIR/lib/" "$MOUNT_POINT/lib/"
+    "$DEV_DIR/lib/" "$MOUNT_POINT/lib/" | grep -c '^>' || true)
+CHANGED_FILES=$((CHANGED_FILES + LIB_CHANGES))
 
 sync
 
@@ -365,42 +376,65 @@ if [ ! -f "$MOUNT_POINT/config.json" ] || [ "$DO_FRESH" = true ]; then
         echo "📝 Installing default config.json (device-specific)..."
     fi
     if [ -f "$CONFIG_FILE" ]; then
-        rsync -av --checksum --inplace --itemize-changes \
-            "$CONFIG_FILE" "$MOUNT_POINT/config.json"
+        CONFIG_CHANGE=$(rsync -a --checksum --inplace --itemize-changes \
+            "$CONFIG_FILE" "$MOUNT_POINT/config.json" | grep -c '^>' || true)
+        CHANGED_FILES=$((CHANGED_FILES + CONFIG_CHANGE))
     else
-        rsync -av --checksum --inplace --itemize-changes \
-            "$DEV_DIR/config.json" "$MOUNT_POINT/config.json"
+        CONFIG_CHANGE=$(rsync -a --checksum --inplace --itemize-changes \
+            "$DEV_DIR/config.json" "$MOUNT_POINT/config.json" | grep -c '^>' || true)
+        CHANGED_FILES=$((CHANGED_FILES + CONFIG_CHANGE))
     fi
 else
     echo "📝 Preserving existing config.json (use --fresh to overwrite)"
 fi
 
 # 5. Deploy device-specific fallback config (reference only)
-rsync -av --checksum --inplace --itemize-changes \
-    "$DEV_DIR/config-mini6.json" "$MOUNT_POINT/config-mini6.json"
+MINI6_CHANGES=$(rsync -a --checksum --inplace --itemize-changes \
+    "$DEV_DIR/config-mini6.json" "$MOUNT_POINT/config-mini6.json" | grep -c '^>' || true)
+CHANGED_FILES=$((CHANGED_FILES + MINI6_CHANGES))
 
 # 6. code.py LAST (all dependencies are now in place)
-rsync -av --checksum --inplace --itemize-changes \
+CODE_CHANGES=$(rsync -a --checksum --inplace --itemize-changes \
     --exclude='.DS_Store' \
     --exclude='*.pyc' \
     --exclude='__pycache__' \
     --exclude='experiments' \
     "$DEV_DIR/code.py" \
-    "$MOUNT_POINT/"
+    "$MOUNT_POINT/" | grep -c '^>' || true)
+CHANGED_FILES=$((CHANGED_FILES + CODE_CHANGES))
 
 # 6. Write VERSION file for firmware version display
 # Distributed packages include a pre-built VERSION file written by CI.
 # Use it directly rather than falling back to "dev" via git describe.
 if [ "$CONTEXT" = "dist" ] && [ -f "$DEV_DIR/VERSION" ]; then
     VERSION=$(cat "$DEV_DIR/VERSION")
-    rsync -av --checksum --inplace --itemize-changes \
-        "$DEV_DIR/VERSION" "$MOUNT_POINT/VERSION"
+    VERSION_CHANGE=$(rsync -a --checksum --inplace --itemize-changes \
+        "$DEV_DIR/VERSION" "$MOUNT_POINT/VERSION" | grep -c '^>' || true)
+    CHANGED_FILES=$((CHANGED_FILES + VERSION_CHANGE))
 else
     VERSION=$(git describe --tags --always 2>/dev/null || echo "dev")
-    echo "$VERSION" > "$MOUNT_POINT/VERSION"
-    echo "$VERSION" > "$DEV_DIR/VERSION"
+    # Check if VERSION needs updating
+    if [ -f "$MOUNT_POINT/VERSION" ]; then
+        CURRENT_VERSION=$(cat "$MOUNT_POINT/VERSION" 2>/dev/null || echo "")
+        if [ "$VERSION" != "$CURRENT_VERSION" ]; then
+            echo "$VERSION" > "$MOUNT_POINT/VERSION"
+            echo "$VERSION" > "$DEV_DIR/VERSION"
+            CHANGED_FILES=$((CHANGED_FILES + 1))
+        fi
+    else
+        echo "$VERSION" > "$MOUNT_POINT/VERSION"
+        echo "$VERSION" > "$DEV_DIR/VERSION"
+        CHANGED_FILES=$((CHANGED_FILES + 1))
+    fi
 fi
 echo "📌 Version: $VERSION"
+
+# Print deployment summary
+if [ "$CHANGED_FILES" -eq 0 ]; then
+    echo -e "${GREEN}✨ No files changed — device is up to date!${NC}"
+else
+    echo -e "${GREEN}✨ Updated $CHANGED_FILES file(s)${NC}"
+fi
 
 # Sync filesystem
 sync
