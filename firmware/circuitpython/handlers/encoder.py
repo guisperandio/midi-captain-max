@@ -10,6 +10,10 @@ Extracted from code.py for better organization.
 
 from adafruit_midi.control_change import ControlChange
 
+# Reusable MIDI message object for performance optimization
+# Avoids memory allocation overhead by reusing the same object
+_midi_cc_msg = ControlChange(0, 0)
+
 
 def handle_encoder_button(
     switches,
@@ -57,7 +61,10 @@ def handle_encoder_button(
             if pressed:
                 encoder_push_state = not encoder_push_state
                 cc_val = enc_push_cc_on if encoder_push_state else enc_push_cc_off
-                send_midi_func(ControlChange(cc_encoder_push, cc_val), channel=enc_push_channel)
+                # Reuse message object for performance (avoid allocation)
+                _midi_cc_msg.control = cc_encoder_push
+                _midi_cc_msg.value = cc_val
+                send_midi_func(_midi_cc_msg, channel=enc_push_channel)
                 print(f"[MIDI TX] Ch{enc_push_channel+1} CC{cc_encoder_push}={cc_val} (encoder push, toggle)")
                 set_button_name_label_func(enc_push_label)
                 set_status_label_func(f"TX CC{cc_encoder_push}={'ON' if encoder_push_state else 'OFF'}")
@@ -65,7 +72,10 @@ def handle_encoder_button(
         else:
             # Momentary mode: send on press and release
             cc_val = enc_push_cc_on if pressed else enc_push_cc_off
-            send_midi_func(ControlChange(cc_encoder_push, cc_val), channel=enc_push_channel)
+            # Reuse message object for performance (avoid allocation)
+            _midi_cc_msg.control = cc_encoder_push
+            _midi_cc_msg.value = cc_val
+            send_midi_func(_midi_cc_msg, channel=enc_push_channel)
             print(f"[MIDI TX] Ch{enc_push_channel+1} CC{cc_encoder_push}={cc_val} (encoder push, momentary)")
             set_button_name_label_func(enc_push_label)
             set_status_label_func(f"TX CC{cc_encoder_push}={cc_val}")
@@ -133,14 +143,20 @@ def handle_encoder(
             if new_slot != encoder_slot:
                 encoder_slot = new_slot
                 # Output CC is the slot number (0 to steps-1)
-                send_midi_func(ControlChange(cc_encoder, encoder_slot), channel=enc_channel)
+                # Reuse message object for performance (avoid allocation)
+                _midi_cc_msg.control = cc_encoder
+                _midi_cc_msg.value = encoder_slot
+                send_midi_func(_midi_cc_msg, channel=enc_channel)
                 print(f"[ENCODER] Ch{enc_channel+1} CC{cc_encoder}={encoder_slot} (slot {new_slot+1}/{enc_steps_safe})")
                 set_button_name_label_func(enc_label)
                 set_status_label_func(f"ENC slot {encoder_slot}")
                 arm_timeout_func()
         else:
             # Normal mode: send every change
-            send_midi_func(ControlChange(cc_encoder, encoder_value), channel=enc_channel)
+            # Reuse message object for performance (avoid allocation)
+            _midi_cc_msg.control = cc_encoder
+            _midi_cc_msg.value = encoder_value
+            send_midi_func(_midi_cc_msg, channel=enc_channel)
             print(f"[ENCODER] Ch{enc_channel+1} CC{cc_encoder}={encoder_value}")
             set_button_name_label_func(enc_label)
             set_status_label_func(f"ENC={encoder_value}")
@@ -213,7 +229,10 @@ def handle_expression(
             threshold = exp1_config.get("threshold", 2)
             if abs(val1 - exp1_last) >= threshold:
                 exp1_last = val1
-                send_midi_func(ControlChange(cc_exp1, val1), channel=exp1_channel)
+                # Reuse message object for performance (avoid allocation)
+                _midi_cc_msg.control = cc_exp1
+                _midi_cc_msg.value = val1
+                send_midi_func(_midi_cc_msg, channel=exp1_channel)
                 lbl = exp1_config.get("label", "EXP1")
                 print(f"[{lbl}] Ch{exp1_channel+1} CC{cc_exp1}={val1}")
 
@@ -237,7 +256,10 @@ def handle_expression(
             threshold = exp2_config.get("threshold", 2)
             if abs(val2 - exp2_last) >= threshold:
                 exp2_last = val2
-                send_midi_func(ControlChange(cc_exp2, val2), channel=exp2_channel)
+                # Reuse message object for performance (avoid allocation)
+                _midi_cc_msg.control = cc_exp2
+                _midi_cc_msg.value = val2
+                send_midi_func(_midi_cc_msg, channel=exp2_channel)
                 lbl = exp2_config.get("label", "EXP2")
                 print(f"[{lbl}] Ch{exp2_channel+1} CC{cc_exp2}={val2}")
 
