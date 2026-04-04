@@ -424,33 +424,55 @@ if [ "$CODE_ONLY" != true ]; then
     CHANGED_FILES=$((CHANGED_FILES + BOOT_CHANGES))
 fi
 
-# 2. Core modules, device definitions, and handlers
+# 2. Core modules, device definitions, and handlers (deployed in parallel)
 if [ "$CODE_ONLY" != true ]; then
     show_progress "Deploying core modules, devices, handlers..."
     # --delete removes stale files from the device (e.g. old .py source when
     # deploying compiled .mpy from a package, or old .mpy when deploying .py
     # source from the dev repo). Without --delete, both forms can coexist on
     # the device and CircuitPython may load the wrong one, causing ImportErrors.
-CORE_CHANGES=$(rsync $(rsync_flags) --delete \
-    --exclude='.DS_Store' \
-    --exclude='*.pyc' \
-    --exclude='__pycache__' \
-    "$DEV_DIR/core/" "$MOUNT_POINT/core/" | grep -c '^[>*]' || true)
-CHANGED_FILES=$((CHANGED_FILES + CORE_CHANGES))
-
-DEVICES_CHANGES=$(rsync $(rsync_flags) --delete \
-    --exclude='.DS_Store' \
-    --exclude='*.pyc' \
-    --exclude='__pycache__' \
-    "$DEV_DIR/devices/" "$MOUNT_POINT/devices/" | grep -c '^[>*]' || true)
-CHANGED_FILES=$((CHANGED_FILES + DEVICES_CHANGES))
-
-HANDLERS_CHANGES=$(rsync $(rsync_flags) --delete \
-    --exclude='.DS_Store' \
-    --exclude='*.pyc' \
-    --exclude='__pycache__' \
-    "$DEV_DIR/handlers/" "$MOUNT_POINT/handlers/" | grep -c '^[>*]' || true)
-CHANGED_FILES=$((CHANGED_FILES + HANDLERS_CHANGES))
+    
+    # Deploy all three in parallel (they don't depend on each other)
+    (
+        rsync $(rsync_flags) --delete \
+            --exclude='.DS_Store' \
+            --exclude='*.pyc' \
+            --exclude='__pycache__' \
+            "$DEV_DIR/core/" "$MOUNT_POINT/core/" > /tmp/deploy_core.$$ 2>&1
+    ) &
+    CORE_PID=$!
+    
+    (
+        rsync $(rsync_flags) --delete \
+            --exclude='.DS_Store' \
+            --exclude='*.pyc' \
+            --exclude='__pycache__' \
+            "$DEV_DIR/devices/" "$MOUNT_POINT/devices/" > /tmp/deploy_devices.$$ 2>&1
+    ) &
+    DEVICES_PID=$!
+    
+    (
+        rsync $(rsync_flags) --delete \
+            --exclude='.DS_Store' \
+            --exclude='*.pyc' \
+            --exclude='__pycache__' \
+            "$DEV_DIR/handlers/" "$MOUNT_POINT/handlers/" > /tmp/deploy_handlers.$$ 2>&1
+    ) &
+    HANDLERS_PID=$!
+    
+    # Wait for all three to complete
+    wait $CORE_PID
+    wait $DEVICES_PID
+    wait $HANDLERS_PID
+    
+    # Count changes from temp files
+    CORE_CHANGES=$(grep -c '^[>*]' /tmp/deploy_core.$$ 2>/dev/null || echo 0)
+    DEVICES_CHANGES=$(grep -c '^[>*]' /tmp/deploy_devices.$$ 2>/dev/null || echo 0)
+    HANDLERS_CHANGES=$(grep -c '^[>*]' /tmp/deploy_handlers.$$ 2>/dev/null || echo 0)
+    CHANGED_FILES=$((CHANGED_FILES + CORE_CHANGES + DEVICES_CHANGES + HANDLERS_CHANGES))
+    
+    # Cleanup temp files
+    rm -f /tmp/deploy_core.$$ /tmp/deploy_devices.$$ /tmp/deploy_handlers.$$
 fi
 
 # 3. Fonts and libraries (deployed in parallel for speed)
