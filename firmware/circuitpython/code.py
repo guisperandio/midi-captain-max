@@ -740,8 +740,8 @@ def record_tap_tempo(idx, now):
         # Update display with BPM info
         btn_config = buttons[idx]
         btn_label = btn_config.get("label", str(idx + 1))
-        set_label_text(button_name_label, btn_label)
-        set_label_text(status_label, f"{bpm} BPM")
+        set_label_text(button_name_label, f"{bpm} BPM")
+        set_label_text(status_label, btn_label)
         
         # Set timeout to return to selected button display after 3 seconds
         global label_timeout_return_to_select
