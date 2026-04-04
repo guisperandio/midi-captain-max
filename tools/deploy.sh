@@ -286,6 +286,17 @@ fi
 rm -f "$MOUNT_POINT/.deploy_write_test" 2>/dev/null
 
 echo "🚀 Deploying changed files..."
+echo ""
+
+# Progress tracking
+TOTAL_STEPS=7
+CURRENT_STEP=0
+
+# Helper function to show progress
+show_progress() {
+    CURRENT_STEP=$((CURRENT_STEP + 1))
+    echo -e "${BLUE}[$CURRENT_STEP/$TOTAL_STEPS]${NC} $1"
+}
 
 # Deploy dependencies first, code.py last. This ensures all imports are
 # in place before the main entry point lands on the device.
@@ -305,12 +316,14 @@ echo "🚀 Deploying changed files..."
 CHANGED_FILES=0
 
 # 1. boot.py first (keeps autoreload disabled)
+show_progress "Deploying boot.py..."
 BOOT_CHANGES=$(rsync -a --checksum --inplace --itemize-changes \
     "$DEV_DIR/boot.py" \
     "$MOUNT_POINT/" | grep -c '^>' || true)
 CHANGED_FILES=$((CHANGED_FILES + BOOT_CHANGES))
 
 # 2. Core modules, device definitions, and fonts
+show_progress "Deploying core modules, devices, handlers..."
 # --delete removes stale files from the device (e.g. old .py source when
 # deploying compiled .mpy from a package, or old .mpy when deploying .py
 # source from the dev repo). Without --delete, both forms can coexist on
@@ -336,6 +349,7 @@ HANDLERS_CHANGES=$(rsync -a --checksum --inplace --itemize-changes --delete \
     "$DEV_DIR/handlers/" "$MOUNT_POINT/handlers/" | grep -c '^[>*]' || true)
 CHANGED_FILES=$((CHANGED_FILES + HANDLERS_CHANGES))
 
+show_progress "Deploying fonts and libraries..."
 FONTS_CHANGES=$(rsync -a --checksum --inplace --itemize-changes \
     --exclude='.DS_Store' \
     "$DEV_DIR/fonts/" "$MOUNT_POINT/fonts/" | grep -c '^>' || true)
@@ -349,31 +363,32 @@ CHANGED_FILES=$((CHANGED_FILES + LIB_CHANGES))
 sync
 
 # 3. Migrate existing config to latest format (if needed)
+show_progress "Checking configuration..."
 if [ -f "$MOUNT_POINT/config.json" ] && [ "$DO_FRESH" != true ]; then
-    echo "🔄 Checking for config migrations..."
     if command -v python3 >/dev/null 2>&1; then
         # Run migration script
         if python3 "$SCRIPT_DIR/migrate_config.py" "$MOUNT_POINT" "$CONFIG_FILE" 2>&1; then
-            echo "✓ Config migration complete"
+            echo "  ✓ Config migration complete"
         else
-            echo -e "${YELLOW}⚠ Config migration skipped (migration script not available)${NC}"
+            echo -e "  ${YELLOW}⚠ Config migration skipped (migration script not available)${NC}"
         fi
     else
-        echo -e "${YELLOW}⚠ Python3 not found, skipping config migration${NC}"
+        echo -e "  ${YELLOW}⚠ Python3 not found, skipping config migration${NC}"
     fi
 else
     # No existing config or fresh mode - skip migration
     if [ "$DO_FRESH" = true ]; then
-        echo "📝 Fresh mode: skipping migration, will install clean config"
+        echo "  Fresh mode: will install clean config"
     fi
 fi
 
 # 4. Deploy config ONLY if it doesn't exist (preserve user customizations)
+show_progress "Deploying configuration files..."
 if [ ! -f "$MOUNT_POINT/config.json" ] || [ "$DO_FRESH" = true ]; then
     if [ "$DO_FRESH" = true ] && [ -f "$MOUNT_POINT/config.json" ]; then
-        echo "📝 Overwriting config.json with fresh default (--fresh mode)..."
+        echo "  Overwriting config.json with fresh default (--fresh mode)"
     else
-        echo "📝 Installing default config.json (device-specific)..."
+        echo "  Installing default config.json (device-specific)"
     fi
     if [ -f "$CONFIG_FILE" ]; then
         CONFIG_CHANGE=$(rsync -a --checksum --inplace --itemize-changes \
@@ -385,7 +400,7 @@ if [ ! -f "$MOUNT_POINT/config.json" ] || [ "$DO_FRESH" = true ]; then
         CHANGED_FILES=$((CHANGED_FILES + CONFIG_CHANGE))
     fi
 else
-    echo "📝 Preserving existing config.json (use --fresh to overwrite)"
+    echo "  Preserving existing config.json (use --fresh to overwrite)"
 fi
 
 # 5. Deploy device-specific fallback config (reference only)
@@ -394,6 +409,7 @@ MINI6_CHANGES=$(rsync -a --checksum --inplace --itemize-changes \
 CHANGED_FILES=$((CHANGED_FILES + MINI6_CHANGES))
 
 # 6. code.py LAST (all dependencies are now in place)
+show_progress "Deploying main firmware (code.py)..."
 CODE_CHANGES=$(rsync -a --checksum --inplace --itemize-changes \
     --exclude='.DS_Store' \
     --exclude='*.pyc' \
@@ -403,7 +419,8 @@ CODE_CHANGES=$(rsync -a --checksum --inplace --itemize-changes \
     "$MOUNT_POINT/" | grep -c '^>' || true)
 CHANGED_FILES=$((CHANGED_FILES + CODE_CHANGES))
 
-# 6. Write VERSION file for firmware version display
+# 7. Write VERSION file for firmware version display
+show_progress "Writing version information..."
 # Distributed packages include a pre-built VERSION file written by CI.
 # Use it directly rather than falling back to "dev" via git describe.
 if [ "$CONTEXT" = "dist" ] && [ -f "$DEV_DIR/VERSION" ]; then
@@ -427,14 +444,7 @@ else
         CHANGED_FILES=$((CHANGED_FILES + 1))
     fi
 fi
-echo "📌 Version: $VERSION"
-
-# Print deployment summary
-if [ "$CHANGED_FILES" -eq 0 ]; then
-    echo -e "${GREEN}✨ No files changed — device is up to date!${NC}"
-else
-    echo -e "${GREEN}✨ Updated $CHANGED_FILES file(s)${NC}"
-fi
+echo "  Version: $VERSION"
 
 # Sync filesystem
 sync
@@ -442,7 +452,7 @@ sync
 # Generate manifest on device for incremental installer updates.
 # The installer compares this against the firmware zip's manifest
 # to skip unchanged files on subsequent installs.
-echo "📋 Generating firmware manifest..."
+show_progress "Generating firmware manifest..."
 # Detect checksum command: md5sum (Linux) or md5 -r (macOS)
 if command -v md5sum &>/dev/null; then
     MD5_CMD="md5sum"
@@ -464,18 +474,27 @@ if [ -n "$MD5_CMD" ]; then
         | xargs $MD5_CMD > "$MOUNT_POINT/firmware.md5"
     )
 else
-    echo "⚠️  Skipping firmware manifest (neither md5sum nor md5 found)"
+    echo "  ⚠️  Skipping (checksum tool not found)"
 fi
 
+# Print deployment summary
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+if [ "$CHANGED_FILES" -eq 0 ]; then
+    echo -e "${GREEN}✨ Deployment complete — No changes needed${NC}"
+    echo "   Device is already up to date"
+else
+    echo -e "${GREEN}✅ Deployment complete — Updated $CHANGED_FILES file(s)${NC}"
+fi
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
 if [ "$DO_EJECT" = true ]; then
     echo "⏏️  Ejecting device..."
     diskutil eject "$MOUNT_POINT" 2>/dev/null || true
-    echo "✅ Deploy complete! Reconnect device to start firmware."
-else
-    echo "✅ Deploy complete!"
     echo ""
+    echo "Reconnect device to start firmware."
+else
     echo "To reload the firmware:"
     echo "  • Open serial console and press Ctrl+D"
     echo "  • Or: Power-cycle the device"
