@@ -10,6 +10,13 @@
 #   --libs-only   Only install libraries (no firmware copy)
 #   --eject       Eject device after deploy (forces clean reload)
 #   --fresh       Overwrite config.json even if it exists
+#   --dry-run     Preview changes without copying files
+#   --fast        Ultra-fast: only copy if file size changed
+#   --verify      Thorough: use content checksums (slow)
+#   --code-only   Only deploy code.py (fastest iteration)
+#   --skip-fonts  Skip font deployment
+#   --skip-libs   Skip library deployment
+#   --skip-config Skip config migration/deployment
 #
 # Examples:
 #   ./deploy.sh                          # Quick deploy
@@ -51,6 +58,19 @@ DO_RESET=false
 DO_INSTALL=false
 LIBS_ONLY=false
 DO_FRESH=false
+DO_DRY_RUN=false
+DO_VERIFY=false
+DO_FAST=false
+
+# Skip options for faster iteration
+SKIP_FONTS=false
+SKIP_LIBS=false
+SKIP_CONFIG=false
+CODE_ONLY=false
+
+# Timing tracking
+DEPLOY_START_TIME=0
+STEP_START_TIME=0
 
 # Required CircuitPython libraries
 REQUIRED_LIBS=(
@@ -84,6 +104,27 @@ for arg in "$@"; do
         --fresh)
             DO_FRESH=true
             ;;
+        --dry-run)
+            DO_DRY_RUN=true
+            ;;
+        --verify)
+            DO_VERIFY=true
+            ;;
+        --fast)
+            DO_FAST=true
+            ;;
+        --code-only)
+            CODE_ONLY=true
+            ;;
+        --skip-fonts)
+            SKIP_FONTS=true
+            ;;
+        --skip-libs)
+            SKIP_LIBS=true
+            ;;
+        --skip-config)
+            SKIP_CONFIG=true
+            ;;
         --help|-h)
             echo "Usage: ./deploy.sh [options] [mount_point]"
             echo ""
@@ -92,6 +133,15 @@ for arg in "$@"; do
             echo "  --libs-only   Only install libraries (no firmware copy)"
             echo "  --eject       Eject device after deploy (forces clean reload)"
             echo "  --fresh       Overwrite config.json even if it exists"
+            echo "  --dry-run     Preview changes without copying files"
+            echo "  --fast        Ultra-fast: only copy if file size changed"
+            echo "  --verify      Thorough: use content checksums (slow)"
+            echo ""
+            echo "Speed Options (for development):"
+            echo "  --code-only   Only deploy code.py (fastest: ~0.5s)"
+            echo "  --skip-fonts  Skip font deployment"
+            echo "  --skip-libs   Skip library deployment"
+            echo "  --skip-config Skip config migration/deployment"
             echo ""
             echo "Works from both development repository and distributed package."
             exit 0
@@ -178,7 +228,7 @@ echo -e "${GREEN}✓ Device found at $MOUNT_POINT${NC}"
 if [ "$DO_INSTALL" = true ]; then
     echo ""
     echo -e "${YELLOW}📦 Installing CircuitPython libraries...${NC}"
-    
+
     # Check for circup
     if ! command -v circup &> /dev/null; then
         echo "  circup not found. Installing..."
@@ -190,7 +240,7 @@ if [ "$DO_INSTALL" = true ]; then
         fi
     fi
     echo -e "${GREEN}✓ circup available${NC}"
-    
+
     # Install each library
     for lib in "${REQUIRED_LIBS[@]}"; do
         echo -n "  Installing $lib... "
@@ -206,7 +256,7 @@ if [ "$DO_INSTALL" = true ]; then
         fi
     done
     echo -e "${GREEN}✓ Libraries installed${NC}"
-    
+
     # Exit early if libs-only mode
     if [ "$LIBS_ONLY" = true ]; then
         echo ""
@@ -285,9 +335,92 @@ if ! touch "$MOUNT_POINT/.deploy_write_test" 2>/dev/null; then
 fi
 rm -f "$MOUNT_POINT/.deploy_write_test" 2>/dev/null
 
-echo "🚀 Deploying changed files..."
+# Check available disk space
+echo "💾 Checking disk space..."
+if command -v df &>/dev/null; then
+    # Get available space in KB, cross-platform (works on macOS and Linux)
+    AVAILABLE_KB=$(df -k "$MOUNT_POINT" | tail -1 | awk '{print $4}')
+    AVAILABLE_MB=$((AVAILABLE_KB / 1024))
 
-# Deploy dependencies first, code.py last. This ensures all imports are
+    # Firmware typically needs ~500KB-1MB
+    MIN_REQUIRED_MB=1
+
+    if [ "$AVAILABLE_MB" -lt "$MIN_REQUIRED_MB" ]; then
+        echo -e "${RED}❌ Insufficient disk space!${NC}"
+        echo "   Available: ${AVAILABLE_MB} MB"
+        echo "   Required: ${MIN_REQUIRED_MB} MB minimum"
+        echo ""
+        echo "Free up space on the device and try again."
+        exit 1
+    else
+        echo -e "${GREEN}✓ ${AVAILABLE_MB} MB available${NC}"
+    fi
+else
+    echo -e "${YELLOW}⚠ Could not check disk space (df not available)${NC}"
+fi
+echo ""
+
+# Start timing
+DEPLOY_START_TIME=$(date +%s)
+
+if [ "$DO_DRY_RUN" = true ]; then
+    echo -e "${YELLOW}🔍 DRY RUN MODE - No files will be copied${NC}"
+    echo ""
+fi
+
+if [ "$CODE_ONLY" = true ]; then
+    echo -e "${BLUE}⚡ CODE-ONLY MODE - Deploying code.py only (fastest)${NC}"
+    echo ""
+fi
+
+echo "🚀 Deploying changed files..."
+echo ""
+
+# Calculate total steps based on what's being deployed
+if [ "$CODE_ONLY" = true ]; then
+    TOTAL_STEPS=2  # VERSION + code.py
+else
+    TOTAL_STEPS=7
+
+    if [ "$SKIP_FONTS" = true ] && [ "$SKIP_LIBS" = true ]; then
+        TOTAL_STEPS=$((TOTAL_STEPS - 1))  # Remove fonts/libs step
+    fi
+
+    if [ "$SKIP_CONFIG" = true ]; then
+        TOTAL_STEPS=$((TOTAL_STEPS - 1))  # Remove config step
+    fi
+fi
+
+CURRENT_STEP=0
+
+# Helper function to show progress with timing
+show_progress() {
+    if [ "$STEP_START_TIME" -ne 0 ]; then
+        # Show elapsed time for previous step
+        local step_end=$(date +%s)
+        local step_duration=$((step_end - STEP_START_TIME))
+        echo -e " ${BLUE}(${step_duration}s)${NC}"
+    fi
+    CURRENT_STEP=$((CURRENT_STEP + 1))
+    echo -ne "${BLUE}[$CURRENT_STEP/$TOTAL_STEPS]${NC} $1"
+    STEP_START_TIME=$(date +%s)
+}
+
+# Helper to add dry-run flag if enabled
+rsync_flags() {
+    local flags="-a --inplace --itemize-changes"
+    if [ "$DO_VERIFY" = true ]; then
+        flags="$flags --checksum"
+    elif [ "$DO_FAST" = true ]; then
+        flags="$flags --size-only"
+    fi
+    if [ "$DO_DRY_RUN" = true ]; then
+        flags="$flags --dry-run"
+    fi
+    echo "$flags"
+}
+
+# Deploy dependencies first, code.py near the end. This ensures all imports are
 # in place before the main entry point lands on the device.
 #
 # NOTE: This script deploys raw .py source files for rapid development.
@@ -295,112 +428,228 @@ echo "🚀 Deploying changed files..."
 # production firmware. See .github/workflows/ci.yml for the compile step.
 #
 # rsync flags:
-# --checksum: compare by content, not just timestamp (more reliable for USB drives)
+# -a: archive mode (preserve permissions, includes -t for timestamp comparison)
+# Default: compare by timestamp + size (copy if source is newer OR size differs)
+# --fast: add --size-only (skip timestamp check, only copy if size changed)
+# --verify: add --checksum (compare by content hash, slower but catches all changes)
 # --inplace: minimize file rewrites
-# --itemize-changes: show what changed
+# --itemize-changes: show what changed (suppresses output for unchanged files)
+# No -v flag: reduces noise, only shows actual changes via --itemize-changes
+
+# Track changed files for summary
+CHANGED_FILES=0
 
 # 1. boot.py first (keeps autoreload disabled)
-rsync -av --checksum --inplace --itemize-changes \
-    "$DEV_DIR/boot.py" \
-    "$MOUNT_POINT/"
+if [ "$CODE_ONLY" != true ]; then
+    show_progress "Deploying boot.py..."
+    BOOT_CHANGES=$(rsync $(rsync_flags) \
+        "$DEV_DIR/boot.py" \
+        "$MOUNT_POINT/" | tee /dev/fd/2 | grep -c '^>' || true)
+    CHANGED_FILES=$((CHANGED_FILES + BOOT_CHANGES))
+fi
 
-# 2. Core modules, device definitions, and fonts
-# --delete removes stale files from the device (e.g. old .py source when
-# deploying compiled .mpy from a package, or old .mpy when deploying .py
-# source from the dev repo). Without --delete, both forms can coexist on
-# the device and CircuitPython may load the wrong one, causing ImportErrors.
-rsync -av --checksum --inplace --itemize-changes --delete \
-    --exclude='.DS_Store' \
-    --exclude='*.pyc' \
-    --exclude='__pycache__' \
-    "$DEV_DIR/core/" "$MOUNT_POINT/core/"
+# 2. Core modules, device definitions, and handlers (deployed in parallel)
+if [ "$CODE_ONLY" != true ]; then
+    show_progress "Deploying core modules, devices, handlers..."
+    # --delete removes stale files from the device (e.g. old .py source when
+    # deploying compiled .mpy from a package, or old .mpy when deploying .py
+    # source from the dev repo). Without --delete, both forms can coexist on
+    # the device and CircuitPython may load the wrong one, causing ImportErrors.
 
-rsync -av --checksum --inplace --itemize-changes --delete \
-    --exclude='.DS_Store' \
-    --exclude='*.pyc' \
-    --exclude='__pycache__' \
-    "$DEV_DIR/devices/" "$MOUNT_POINT/devices/"
+    # Deploy all three in parallel (they don't depend on each other)
+    (
+        rsync $(rsync_flags) --delete \
+            --exclude='.DS_Store' \
+            --exclude='*.pyc' \
+            --exclude='__pycache__' \
+            "$DEV_DIR/core/" "$MOUNT_POINT/core/" > /tmp/deploy_core.$$ 2>&1
+    ) &
+    CORE_PID=$!
 
-rsync -av --checksum --inplace --itemize-changes --delete \
-    --exclude='.DS_Store' \
-    --exclude='*.pyc' \
-    --exclude='__pycache__' \
-    "$DEV_DIR/handlers/" "$MOUNT_POINT/handlers/"
+    (
+        rsync $(rsync_flags) --delete \
+            --exclude='.DS_Store' \
+            --exclude='*.pyc' \
+            --exclude='__pycache__' \
+            "$DEV_DIR/devices/" "$MOUNT_POINT/devices/" > /tmp/deploy_devices.$$ 2>&1
+    ) &
+    DEVICES_PID=$!
 
-rsync -av --checksum --inplace --itemize-changes \
-    --exclude='.DS_Store' \
-    "$DEV_DIR/fonts/" "$MOUNT_POINT/fonts/"
+    (
+        rsync $(rsync_flags) --delete \
+            --exclude='.DS_Store' \
+            --exclude='*.pyc' \
+            --exclude='__pycache__' \
+            "$DEV_DIR/handlers/" "$MOUNT_POINT/handlers/" > /tmp/deploy_handlers.$$ 2>&1
+    ) &
+    HANDLERS_PID=$!
 
-rsync -av --checksum --inplace --itemize-changes \
-    --exclude='.DS_Store' \
-    "$DEV_DIR/lib/" "$MOUNT_POINT/lib/"
+    # Wait for all three to complete
+    wait $CORE_PID
+    wait $DEVICES_PID
+    wait $HANDLERS_PID
+
+    # Show and count changes from temp files
+    cat /tmp/deploy_core.$$ /tmp/deploy_devices.$$ /tmp/deploy_handlers.$$ 2>/dev/null || true
+    CORE_CHANGES=$(grep -c '^[>*]' /tmp/deploy_core.$$ 2>/dev/null || echo 0)
+    DEVICES_CHANGES=$(grep -c '^[>*]' /tmp/deploy_devices.$$ 2>/dev/null || echo 0)
+    HANDLERS_CHANGES=$(grep -c '^[>*]' /tmp/deploy_handlers.$$ 2>/dev/null || echo 0)
+    # Strip whitespace and ensure integers
+    CORE_CHANGES=$(echo "$CORE_CHANGES" | tr -d '[:space:]')
+    DEVICES_CHANGES=$(echo "$DEVICES_CHANGES" | tr -d '[:space:]')
+    HANDLERS_CHANGES=$(echo "$HANDLERS_CHANGES" | tr -d '[:space:]')
+    CORE_CHANGES=${CORE_CHANGES:-0}
+    DEVICES_CHANGES=${DEVICES_CHANGES:-0}
+    HANDLERS_CHANGES=${HANDLERS_CHANGES:-0}
+    CHANGED_FILES=$((CHANGED_FILES + CORE_CHANGES + DEVICES_CHANGES + HANDLERS_CHANGES))
+
+    # Cleanup temp files
+    rm -f /tmp/deploy_core.$$ /tmp/deploy_devices.$$ /tmp/deploy_handlers.$$
+fi
+
+# 3. Fonts and libraries (deployed in parallel for speed)
+if [ "$CODE_ONLY" != true ] && { [ "$SKIP_FONTS" != true ] || [ "$SKIP_LIBS" != true ]; }; then
+    show_progress "Deploying fonts and libraries..."
+
+    # Initialize PID variables
+    FONTS_PID=""
+    LIBS_PID=""
+
+    # Deploy fonts and libs in parallel (they don't depend on each other)
+    if [ "$SKIP_FONTS" != true ]; then
+        (
+            rsync $(rsync_flags) \
+                --exclude='.DS_Store' \
+                "$DEV_DIR/fonts/" "$MOUNT_POINT/fonts/" > /tmp/deploy_fonts.$$ 2>&1
+        ) &
+        FONTS_PID=$!
+    fi
+
+    if [ "$SKIP_LIBS" != true ]; then
+        (
+            rsync $(rsync_flags) \
+                --exclude='.DS_Store' \
+                "$DEV_DIR/lib/" "$MOUNT_POINT/lib/" > /tmp/deploy_libs.$$ 2>&1
+        ) &
+        LIBS_PID=$!
+    fi
+
+    # Wait for both to complete
+    [ -n "$FONTS_PID" ] && wait $FONTS_PID
+    [ -n "$LIBS_PID" ] && wait $LIBS_PID
+
+# Show and count changes from temp files
+    if [ "$SKIP_FONTS" != true ]; then
+        cat /tmp/deploy_fonts.$$ 2>/dev/null || true
+        FONTS_CHANGES=$(grep -c '^>' /tmp/deploy_fonts.$$ 2>/dev/null || echo 0)
+        FONTS_CHANGES=$(echo "$FONTS_CHANGES" | tr -d '[:space:]')
+        FONTS_CHANGES=${FONTS_CHANGES:-0}
+        CHANGED_FILES=$((CHANGED_FILES + FONTS_CHANGES))
+    fi
+    
+    if [ "$SKIP_LIBS" != true ]; then
+        cat /tmp/deploy_libs.$$ 2>/dev/null || true
+        LIB_CHANGES=$(grep -c '^>' /tmp/deploy_libs.$$ 2>/dev/null || echo 0)
+        LIB_CHANGES=$(echo "$LIB_CHANGES" | tr -d '[:space:]')
+        LIB_CHANGES=${LIB_CHANGES:-0}
+        CHANGED_FILES=$((CHANGED_FILES + LIB_CHANGES))
+    fi
+
+    # Cleanup temp files
+    rm -f /tmp/deploy_fonts.$$ /tmp/deploy_libs.$$
+fi
 
 sync
 
-# 3. Migrate existing config to latest format (if needed)
-if [ -f "$MOUNT_POINT/config.json" ] && [ "$DO_FRESH" != true ]; then
-    echo "🔄 Checking for config migrations..."
-    if command -v python3 >/dev/null 2>&1; then
-        # Run migration script
-        if python3 "$SCRIPT_DIR/migrate_config.py" "$MOUNT_POINT" "$CONFIG_FILE" 2>&1; then
-            echo "✓ Config migration complete"
+# 4. Migrate existing config to latest format (if needed)
+if [ "$CODE_ONLY" != true ] && [ "$SKIP_CONFIG" != true ]; then
+    show_progress "Checking configuration..."
+    if [ -f "$MOUNT_POINT/config.json" ] && [ "$DO_FRESH" != true ]; then
+        if command -v python3 >/dev/null 2>&1; then
+            # Run migration script
+            if python3 "$SCRIPT_DIR/migrate_config.py" "$MOUNT_POINT" "$CONFIG_FILE" 2>&1; then
+                echo "  ✓ Config migration complete"
+            else
+                echo -e "  ${YELLOW}⚠ Config migration skipped (migration script not available)${NC}"
+            fi
         else
-            echo -e "${YELLOW}⚠ Config migration skipped (migration script not available)${NC}"
+            echo -e "  ${YELLOW}⚠ Python3 not found, skipping config migration${NC}"
         fi
     else
-        echo -e "${YELLOW}⚠ Python3 not found, skipping config migration${NC}"
-    fi
-else
-    # No existing config or fresh mode - skip migration
-    if [ "$DO_FRESH" = true ]; then
-        echo "📝 Fresh mode: skipping migration, will install clean config"
+        # No existing config or fresh mode - skip migration
+        if [ "$DO_FRESH" = true ]; then
+            echo "  Fresh mode: will install clean config"
+        fi
     fi
 fi
 
-# 4. Deploy config ONLY if it doesn't exist (preserve user customizations)
-if [ ! -f "$MOUNT_POINT/config.json" ] || [ "$DO_FRESH" = true ]; then
-    if [ "$DO_FRESH" = true ] && [ -f "$MOUNT_POINT/config.json" ]; then
-        echo "📝 Overwriting config.json with fresh default (--fresh mode)..."
+# 5. Deploy config ONLY if it doesn't exist (preserve user customizations)
+if [ "$CODE_ONLY" != true ] && [ "$SKIP_CONFIG" != true ]; then
+    show_progress "Deploying configuration files..."
+    if [ ! -f "$MOUNT_POINT/config.json" ] || [ "$DO_FRESH" = true ]; then
+        if [ "$DO_FRESH" = true ] && [ -f "$MOUNT_POINT/config.json" ]; then
+            echo "  Overwriting config.json with fresh default (--fresh mode)"
+        else
+            echo "  Installing default config.json (device-specific)"
+        fi
+        if [ -f "$CONFIG_FILE" ]; then
+            CONFIG_CHANGE=$(rsync $(rsync_flags) \
+                "$CONFIG_FILE" "$MOUNT_POINT/config.json" | tee /dev/fd/2 | grep -c '^>' || true)
+            CHANGED_FILES=$((CHANGED_FILES + CONFIG_CHANGE))
+        else
+            CONFIG_CHANGE=$(rsync $(rsync_flags) \
+                "$DEV_DIR/config.json" "$MOUNT_POINT/config.json" | tee /dev/fd/2 | grep -c '^>' || true)
+            CHANGED_FILES=$((CHANGED_FILES + CONFIG_CHANGE))
+        fi
     else
-        echo "📝 Installing default config.json (device-specific)..."
+        echo "  Preserving existing config.json (use --fresh to overwrite)"
     fi
-    if [ -f "$CONFIG_FILE" ]; then
-        rsync -av --checksum --inplace --itemize-changes \
-            "$CONFIG_FILE" "$MOUNT_POINT/config.json"
-    else
-        rsync -av --checksum --inplace --itemize-changes \
-            "$DEV_DIR/config.json" "$MOUNT_POINT/config.json"
-    fi
-else
-    echo "📝 Preserving existing config.json (use --fresh to overwrite)"
-fi
 
-# 5. Deploy device-specific fallback config (reference only)
-rsync -av --checksum --inplace --itemize-changes \
-    "$DEV_DIR/config-mini6.json" "$MOUNT_POINT/config-mini6.json"
+    # Deploy device-specific fallback config (reference only)
+    MINI6_CHANGES=$(rsync $(rsync_flags) \
+        "$DEV_DIR/config-mini6.json" "$MOUNT_POINT/config-mini6.json" | tee /dev/fd/2 | grep -c '^>' || true)
+    CHANGED_FILES=$((CHANGED_FILES + MINI6_CHANGES))
+fi
 
 # 6. code.py LAST (all dependencies are now in place)
-rsync -av --checksum --inplace --itemize-changes \
+show_progress "Deploying main firmware (code.py)..."
+CODE_CHANGES=$(rsync $(rsync_flags) \
     --exclude='.DS_Store' \
     --exclude='*.pyc' \
     --exclude='__pycache__' \
     --exclude='experiments' \
     "$DEV_DIR/code.py" \
-    "$MOUNT_POINT/"
+    "$MOUNT_POINT/" | tee /dev/fd/2 | grep -c '^>' || true)
+CHANGED_FILES=$((CHANGED_FILES + CODE_CHANGES))
 
-# 6. Write VERSION file for firmware version display
+# 7. Write VERSION file for firmware version display
+show_progress "Writing version information..."
 # Distributed packages include a pre-built VERSION file written by CI.
 # Use it directly rather than falling back to "dev" via git describe.
 if [ "$CONTEXT" = "dist" ] && [ -f "$DEV_DIR/VERSION" ]; then
     VERSION=$(cat "$DEV_DIR/VERSION")
-    rsync -av --checksum --inplace --itemize-changes \
-        "$DEV_DIR/VERSION" "$MOUNT_POINT/VERSION"
+    VERSION_CHANGE=$(rsync $(rsync_flags) \
+        "$DEV_DIR/VERSION" "$MOUNT_POINT/VERSION" | tee /dev/fd/2 | grep -c '^>' || true)
+    CHANGED_FILES=$((CHANGED_FILES + VERSION_CHANGE))
 else
     VERSION=$(git describe --tags --always 2>/dev/null || echo "dev")
-    echo "$VERSION" > "$MOUNT_POINT/VERSION"
-    echo "$VERSION" > "$DEV_DIR/VERSION"
+    # Check if VERSION needs updating (skip in dry-run mode)
+    if [ "$DO_DRY_RUN" != true ]; then
+        if [ -f "$MOUNT_POINT/VERSION" ]; then
+            CURRENT_VERSION=$(cat "$MOUNT_POINT/VERSION" 2>/dev/null || echo "")
+            if [ "$VERSION" != "$CURRENT_VERSION" ]; then
+                echo "$VERSION" > "$MOUNT_POINT/VERSION"
+                echo "$VERSION" > "$DEV_DIR/VERSION"
+                CHANGED_FILES=$((CHANGED_FILES + 1))
+            fi
+        else
+            echo "$VERSION" > "$MOUNT_POINT/VERSION"
+            echo "$VERSION" > "$DEV_DIR/VERSION"
+            CHANGED_FILES=$((CHANGED_FILES + 1))
+        fi
+    fi
 fi
-echo "📌 Version: $VERSION"
+echo "  Version: $VERSION"
 
 # Sync filesystem
 sync
@@ -408,40 +657,70 @@ sync
 # Generate manifest on device for incremental installer updates.
 # The installer compares this against the firmware zip's manifest
 # to skip unchanged files on subsequent installs.
-echo "📋 Generating firmware manifest..."
-# Detect checksum command: md5sum (Linux) or md5 -r (macOS)
-if command -v md5sum &>/dev/null; then
-    MD5_CMD="md5sum"
-elif command -v md5 &>/dev/null; then
-    MD5_CMD="md5 -r"
-else
-    MD5_CMD=""
-fi
-if [ -n "$MD5_CMD" ]; then
-    (
-      cd "$DEV_DIR"
-      find . -type f \
-        -not -name "*.pyc" \
-        -not -path "*/__pycache__/*" \
-        -not -path "*/experiments/*" \
-        -not -name "firmware.md5" \
-        -not -name ".DS_Store" \
-        | sort \
-        | xargs $MD5_CMD > "$MOUNT_POINT/firmware.md5"
-    )
-else
-    echo "⚠️  Skipping firmware manifest (neither md5sum nor md5 found)"
+if [ "$CODE_ONLY" != true ]; then
+    show_progress "Generating firmware manifest..."
+    # Detect checksum command: md5sum (Linux) or md5 -r (macOS)
+    if command -v md5sum &>/dev/null; then
+        MD5_CMD="md5sum"
+    elif command -v md5 &>/dev/null; then
+        MD5_CMD="md5 -r"
+    else
+        MD5_CMD=""
+    fi
+    if [ -n "$MD5_CMD" ]; then
+        (
+          cd "$DEV_DIR"
+          find . -type f \
+            -not -name "*.pyc" \
+            -not -path "*/__pycache__/*" \
+            -not -path "*/experiments/*" \
+            -not -name "firmware.md5" \
+            -not -name ".DS_Store" \
+            | sort \
+            | xargs $MD5_CMD > "$MOUNT_POINT/firmware.md5"
+        )
+    else
+        echo "  ⚠️  Skipping (checksum tool not found)"
+    fi
 fi
 
+# Show timing for last step
+if [ "$STEP_START_TIME" -ne 0 ]; then
+    step_end=$(date +%s)
+    step_duration=$((step_end - STEP_START_TIME))
+    echo -e " ${BLUE}(${step_duration}s)${NC}"
+fi
+
+# Calculate total deployment time
+DEPLOY_END_TIME=$(date +%s)
+TOTAL_TIME=$((DEPLOY_END_TIME - DEPLOY_START_TIME))
+
+# Print deployment summary
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+if [ "$DO_DRY_RUN" = true ]; then
+    echo -e "${YELLOW}🔍 DRY RUN COMPLETE${NC}"
+    if [ "$CHANGED_FILES" -eq 0 ]; then
+        echo "   No changes detected"
+    else
+        echo "   $CHANGED_FILES file(s) would be updated"
+    fi
+elif [ "$CHANGED_FILES" -eq 0 ]; then
+    echo -e "${GREEN}✨ Deployment complete — No changes needed${NC}"
+    echo "   Device is already up to date"
+else
+    echo -e "${GREEN}✅ Deployment complete — Updated $CHANGED_FILES file(s)${NC}"
+fi
+echo -e "${BLUE}⏱️  Total time: ${TOTAL_TIME}s${NC}"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
 if [ "$DO_EJECT" = true ]; then
     echo "⏏️  Ejecting device..."
     diskutil eject "$MOUNT_POINT" 2>/dev/null || true
-    echo "✅ Deploy complete! Reconnect device to start firmware."
-else
-    echo "✅ Deploy complete!"
     echo ""
+    echo "Reconnect device to start firmware."
+else
     echo "To reload the firmware:"
     echo "  • Open serial console and press Ctrl+D"
     echo "  • Or: Power-cycle the device"

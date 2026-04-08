@@ -121,7 +121,6 @@
     <div class="error-panel">
       <div class="error-header">
         <div class="error-title">
-          <span class="error-icon">⚠️</span>
           <strong>{$validationErrors.size} validation {$validationErrors.size === 1 ? 'error' : 'errors'}</strong>
         </div>
         <button class="error-close" onclick={() => showErrorPanel = false} title="Dismiss">✕</button>
@@ -336,10 +335,6 @@
     gap: 8px;
     color: #ff6b6b;
     font-size: 14px;
-  }
-
-  .error-icon {
-    font-size: 16px;
   }
 
   .error-close {

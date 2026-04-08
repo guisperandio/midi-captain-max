@@ -447,6 +447,15 @@ display = ST7789(
     rotation=DISPLAY_ROTATION,
 )
 
+# Show blank black screen immediately to avoid displaying uninitialized RAM noise
+blank_group = displayio.Group()
+blank_bitmap = displayio.Bitmap(DISPLAY_WIDTH, DISPLAY_HEIGHT, 1)
+blank_palette = displayio.Palette(1)
+blank_palette[0] = 0x000000  # Black
+blank_sprite = displayio.TileGrid(blank_bitmap, pixel_shader=blank_palette, x=0, y=0)
+blank_group.append(blank_sprite)
+display.show(blank_group)
+
 # Boot splash screen (optional)
 # If /splash.bmp exists, display it for configured duration
 splash_config = config.get("splash_screen", {})
@@ -732,7 +741,21 @@ def record_tap_tempo(idx, now):
         blink_rate_ms[idx] = ms
         # Extend the active window for this tap so blinking is visible
         tap_active_until[idx] = now + (blink_rate_ms[idx] / 1000.0) * TAP_ACTIVE_WINDOW_MULTIPLIER
-        print(f"[TAP] Button {idx+1} tempo set to {ms} ms ({60_000//ms} BPM approx)")
+        
+        # Calculate and display BPM on screen
+        bpm = 60_000 // ms
+        print(f"[TAP] Button {idx+1} tempo set to {ms} ms ({bpm} BPM)")
+        
+        # Update display with BPM info
+        btn_config = buttons[idx]
+        btn_label = btn_config.get("label", str(idx + 1))
+        set_label_text(button_name_label, f"{bpm} BPM")
+        set_label_text(status_label, btn_label)
+        
+        # Set timeout to return to selected button display after 3 seconds
+        global label_timeout_return_to_select
+        label_timeout_return_to_select = now + LABEL_RETURN_TIMEOUT_SEC
+        
     except (ZeroDivisionError, ValueError) as e:
         print(f"Tap tempo calculation error for button {idx}: {e}")
     except Exception as e:
@@ -849,17 +872,17 @@ display.show(main_group)
 # Track last activity time for idle timeout splash
 last_activity_time = time.monotonic()
 is_showing_splash = False
+needs_wake_from_splash = False  # Deferred wake flag to avoid blocking MIDI
 idle_timeout_enabled = splash_config.get("enabled", True)
 idle_timeout_seconds = splash_config.get("idle_timeout_seconds", 0)  # 0 = disabled
 
 def reset_activity_timer():
     """Reset the idle activity timer (called on any button press)."""
-    global last_activity_time, is_showing_splash
+    global last_activity_time, needs_wake_from_splash
     last_activity_time = time.monotonic()
-    # Wake from splash if showing
+    # Schedule wake from splash if showing (deferred to end of loop to avoid blocking MIDI)
     if is_showing_splash:
-        is_showing_splash = False
-        display.show(main_group)
+        needs_wake_from_splash = True
 
 def update_idle_timeout():
     """Check if idle timeout expired and show splash if needed."""
@@ -2303,6 +2326,12 @@ while True:
         handle_encoder()
     if HAS_EXPRESSION:
         handle_expression()
+    
+    # Wake from splash screen (deferred until after MIDI processing to avoid input lag)
+    if needs_wake_from_splash:
+        is_showing_splash = False
+        needs_wake_from_splash = False
+        display.show(main_group)
     
     # Batch LED update: only call pixels.show() once per loop if LEDs changed
     if led_dirty:

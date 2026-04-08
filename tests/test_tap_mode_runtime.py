@@ -62,5 +62,5 @@ def test_tap_mode_always_on_and_sends_on_each_press(tmp_path, monkeypatch, firmw
     assert len(sent) >= 3
     # Button should remain logically OFF (tap does not persist state)
     assert fw.button_states[idx].state is False
-    # Status label should reflect last TX for the configured CC
-    assert "CC40" in fw.status_label.text
+    # Big label should show BPM from tap tempo
+    assert "BPM" in fw.button_name_label.text
