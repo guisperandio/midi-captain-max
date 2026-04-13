@@ -577,15 +577,24 @@ pub fn trigger_device_reload(device_path: String) -> Result<String, ConfigError>
 
     // Drain any output from the interrupted program or REPL prompt
     // Loop until timeout to ensure buffer is fully drained
+    // Add hard cap to prevent hanging if device produces continuous output
     port.set_timeout(Duration::from_millis(100)).map_err(|e| ConfigError {
         message: format!("Failed to set drain timeout: {}", e),
         details: None,
     })?;
     let mut drain_buf = [0u8; 256];
+    let max_drain_iterations = 50;  // Max 5s drain time, 12.8KB data
+    let mut iterations = 0;
     loop {
+        if iterations >= max_drain_iterations {
+            break;  // Hard cap to prevent hanging on continuous output
+        }
         match port.read(&mut drain_buf) {
             Ok(0) => break,  // No data available
-            Ok(_) => continue,  // Got data, keep draining
+            Ok(_) => {
+                iterations += 1;
+                continue;  // Got data, keep draining
+            }
             Err(ref e) if e.kind() == std::io::ErrorKind::TimedOut => break,  // Timeout means buffer is drained
             Err(_) => break,  // Other errors, stop draining
         }
