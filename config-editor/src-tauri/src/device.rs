@@ -49,7 +49,7 @@ pub fn parse_midi_captain_config(config_path: &std::path::Path) -> Option<String
     let contents = std::fs::read_to_string(config_path).ok()?;
     let value: serde_json::Value = serde_json::from_str(&contents).ok()?;
     let device = value.get("device").and_then(|v| v.as_str())?;
-    if device != "std10" && device != "mini6" && device != "nano4" && device != "duo2" && device != "one1" {
+    if !matches!(device, "std10" | "mini6" | "nano4" | "duo2" | "one1") {
         return None;
     }
     // Return usb_drive_name only if explicitly set — no default fallback

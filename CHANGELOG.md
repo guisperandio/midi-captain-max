@@ -12,7 +12,7 @@ All notable changes to this project will be documented in this file.
   - Added `awalsh128/cache-apt-pkgs-action@latest` for Linux apt dependencies
   - **Impact**: Better performance and compatibility with latest GitHub Actions features
 
-###  Added — Upstream Cherry-Picks
+### Added — Upstream Cherry-Picks
 - **Improved serial soft-reboot reliability** (cherry-picked from upstream)
   - Replaced Ctrl-R (0x12) with Ctrl-C + Ctrl-D sequence for CircuitPython reboot
   - Ctrl-C (0x03) interrupts program, Ctrl-D (0x04) triggers soft reload

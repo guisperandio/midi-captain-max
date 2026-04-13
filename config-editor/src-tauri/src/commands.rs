@@ -2,7 +2,7 @@
 
 use crate::config::MidiCaptainConfig;
 use std::fs::{self, OpenOptions};
-use std::io::Write;
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 use tauri::command;
@@ -434,51 +434,53 @@ pub fn eject_device(path: String) -> Result<String, ConfigError> {
 // Device auto-reload via serial
 // ---------------------------------------------------------------------------
 
-/// Adafruit USB Vendor ID — all MIDI Captain devices use Adafruit CircuitPython boards
-const ADAFRUIT_VID: u16 = 0x239A;
+/// USB Vendor IDs for CircuitPython devices
+const ADAFRUIT_VID: u16 = 0x239A;  // Adafruit boards
+const RASPBERRY_PI_VID: u16 = 0x2E8A;  // RP2040/Pico boards
 
-/// Find a CircuitPython serial port by looking for Adafruit VID.
-/// On macOS each USB serial device appears as both `/dev/cu.*` and `/dev/tty.*`.
-/// We deduplicate by USB serial number and prefer `cu.*` (doesn't block on open).
+/// Find a CircuitPython serial port by looking for known CircuitPython VIDs.
+/// On macOS each USB serial device may appear as both `/dev/cu.*` and `/dev/tty.*`.
+/// When both are present, prefer `cu.*` (it doesn't block on open).
 fn find_device_serial_port(_device_path: &Path) -> Result<String, ConfigError> {
     let ports = serialport::available_ports().map_err(|e| ConfigError {
         message: format!("Failed to enumerate serial ports: {}", e),
         details: None,
     })?;
 
-    // Filter to Adafruit VID ports, preferring cu.* over tty.* on macOS
-    let mut adafruit_ports: Vec<_> = ports
+    // Filter to known CircuitPython VID ports, preferring cu.* over tty.* on macOS
+    let mut circuitpython_ports: Vec<_> = ports
         .iter()
         .filter(|p| {
             matches!(
                 &p.port_type,
-                serialport::SerialPortType::UsbPort(info) if info.vid == ADAFRUIT_VID
+                serialport::SerialPortType::UsbPort(info) 
+                    if info.vid == ADAFRUIT_VID || info.vid == RASPBERRY_PI_VID
             )
         })
         .collect();
 
     // On macOS, cu.* and tty.* are the same physical device — deduplicate.
     // Keep cu.* (call-up port, doesn't block waiting for carrier detect).
-    if adafruit_ports.len() > 1 {
-        let has_cu = adafruit_ports.iter().any(|p| p.port_name.contains("/cu."));
+    if circuitpython_ports.len() > 1 {
+        let has_cu = circuitpython_ports.iter().any(|p| p.port_name.contains("/cu."));
         if has_cu {
-            adafruit_ports.retain(|p| p.port_name.contains("/cu."));
+            circuitpython_ports.retain(|p| p.port_name.contains("/cu."));
         }
     }
 
-    match adafruit_ports.len() {
+    match circuitpython_ports.len() {
         0 => Err(ConfigError {
             message: "No CircuitPython serial port found. Is the device connected?".to_string(),
             details: None,
         }),
-        1 => Ok(adafruit_ports[0].port_name.clone()),
+        1 => Ok(circuitpython_ports[0].port_name.clone()),
         _ => {
-            // Multiple distinct Adafruit devices.
+            // Multiple distinct CircuitPython devices.
             // Future: correlate by USB serial number.
             Err(ConfigError {
                 message: format!(
                     "Found {} CircuitPython devices. Disconnect other devices and try again.",
-                    adafruit_ports.len()
+                    circuitpython_ports.len()
                 ),
                 details: None,
             })
@@ -500,12 +502,10 @@ fn find_device_serial_port(_device_path: &Path) -> Result<String, ConfigError> {
 /// (serial number, bus location) to target the specific device that was just saved.
 #[command]
 pub fn trigger_device_reload(device_path: String) -> Result<String, ConfigError> {
-    validate_device_path(&device_path)?;
+    let canonical_path = validate_device_path(&device_path)?;
+    verify_device_connected(&canonical_path)?;
 
-    let path_obj = Path::new(&device_path);
-    verify_device_connected(path_obj)?;
-
-    let serial_port = find_device_serial_port(path_obj)?;
+    let serial_port = find_device_serial_port(&canonical_path)?;
 
     let mut port = serialport::new(&serial_port, 115200)
         .timeout(Duration::from_secs(2))
