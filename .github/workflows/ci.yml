@@ -1,9 +1,15 @@
 name: CI
 
 on:
+  # Always run on main branch (any commit could be tagged for release)
   push:
-    branches: 
-      - "**"
+    branches:
+      - main
+  
+  # For PRs, skip docs-only changes to save CI resources
+  pull_request:
+    branches:
+      - main
     paths-ignore:
       - "**/*.md"
       - docs/**
