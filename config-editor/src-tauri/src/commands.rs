@@ -170,6 +170,7 @@ fn validate_device_path(path: &str) -> Result<PathBuf, ConfigError> {
 /// Check if a volume is still mounted (not being ejected)
 /// Compares device ID of volume vs root - if same, volume is not a separate filesystem
 #[cfg(unix)]
+#[allow(dead_code)]
 fn is_volume_mounted(volume_path: &Path) -> bool {
     if let (Ok(vol_meta), Ok(root_meta)) = (volume_path.metadata(), Path::new("/").metadata()) {
         vol_meta.dev() != root_meta.dev()
@@ -179,6 +180,7 @@ fn is_volume_mounted(volume_path: &Path) -> bool {
 }
 
 #[cfg(not(unix))]
+#[allow(dead_code)]
 fn is_volume_mounted(volume_path: &Path) -> bool {
     // On non-Unix systems, just check if path exists
     volume_path.exists()
@@ -214,9 +216,6 @@ fn get_volume_path(path: &Path) -> Option<PathBuf> {
 /// Verify the device is still mounted before writing
 #[cfg(target_os = "windows")]
 fn verify_device_connected(path: &Path) -> Result<(), ConfigError> {
-    use std::ffi::OsString;
-    use std::os::windows::ffi::OsStrExt;
-    
     // On Windows, just verify the file path exists and is writable
     // The device scanner already filtered to safe drive types
     if !path.exists() {
