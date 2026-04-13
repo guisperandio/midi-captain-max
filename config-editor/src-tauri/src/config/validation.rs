@@ -258,9 +258,13 @@ impl MidiCaptainConfig {
 
         // Validate encoder if present
         if let Some(ref enc) = self.encoder {
-            // Mini6 does not support encoder
-            if self.device == DeviceType::Mini6 {
-                errors.push("Mini6 does not support encoder".to_string());
+            // Encoder is only supported on STD10 devices
+            if !matches!(self.device, DeviceType::Std10) {
+                errors.push(format!(
+                    "Encoder configuration is only supported for {:?}, found on {:?}",
+                    DeviceType::Std10,
+                    self.device
+                ));
             }
             if enc.cc > 127 {
                 errors.push(format!("Encoder CC {} exceeds 127", enc.cc));

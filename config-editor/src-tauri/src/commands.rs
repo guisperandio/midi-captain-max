@@ -448,10 +448,11 @@ pub fn eject_device(path: String) -> Result<String, ConfigError> {
 // Device auto-reload via serial
 // ---------------------------------------------------------------------------
 
-/// Adafruit USB Vendor ID — all MIDI Captain devices use Adafruit CircuitPython boards
-const ADAFRUIT_VID: u16 = 0x239A;
+/// USB Vendor IDs for CircuitPython devices
+const ADAFRUIT_VID: u16 = 0x239A;  // Adafruit boards
+const RASPBERRY_PI_VID: u16 = 0x2E8A;  // RP2040/Pico boards
 
-/// Find a CircuitPython serial port by looking for Adafruit VID.
+/// Find a CircuitPython serial port by looking for known CircuitPython VIDs.
 /// On macOS each USB serial device may appear as both `/dev/cu.*` and `/dev/tty.*`.
 /// When both are present, prefer `cu.*` (it doesn't block on open).
 fn find_device_serial_port(_device_path: &Path) -> Result<String, ConfigError> {
@@ -460,39 +461,71 @@ fn find_device_serial_port(_device_path: &Path) -> Result<String, ConfigError> {
         details: None,
     })?;
 
-    // Filter to Adafruit VID ports, preferring cu.* over tty.* on macOS
-    let mut adafruit_ports: Vec<_> = ports
+    // Filter to known CircuitPython VID ports, preferring cu.* over tty.* on macOS
+    let mut circuitpython_ports: Vec<_> = ports
         .iter()
         .filter(|p| {
             matches!(
                 &p.port_type,
-                serialport::SerialPortType::UsbPort(info) if info.vid == ADAFRUIT_VID
+                serialport::SerialPortType::UsbPort(info) 
+                    if info.vid == ADAFRUIT_VID || info.vid == RASPBERRY_PI_VID
             )
         })
         .collect();
 
     // On macOS, cu.* and tty.* are the same physical device — deduplicate.
     // Keep cu.* (call-up port, doesn't block waiting for carrier detect).
-    if adafruit_ports.len() > 1 {
-        let has_cu = adafruit_ports.iter().any(|p| p.port_name.contains("/cu."));
+    if circuitpython_ports.len() > 1 {
+        let has_cu = circuitpython_ports.iter().any(|p| p.port_name.contains("/cu."));
         if has_cu {
-            adafruit_ports.retain(|p| p.port_name.contains("/cu."));
+            circuitpython_ports.retain(|p| p.port_name.contains("/cu."));
         }
     }
 
-    match adafruit_ports.len() {
-        0 => Err(ConfigError {
-            message: "No CircuitPython serial port found. Is the device connected?".to_string(),
-            details: None,
-        }),
-        1 => Ok(adafruit_ports[0].port_name.clone()),
+    match circuitpython_ports.len() {
+        0 => {
+            // No VID-matched ports found. Try fallback heuristics based on port name.
+            // This handles platforms/drivers where USB VID info isn't available.
+            let fallback_ports: Vec<_> = ports
+                .iter()
+                .filter(|p| {
+                    let name = p.port_name.to_lowercase();
+                    name.contains("usbmodem") || name.contains("ttyacm") || name.starts_with("com")
+                })
+                .collect();
+            
+            match fallback_ports.len() {
+                0 => Err(ConfigError {
+                    message: "No CircuitPython serial port found. Is the device connected?".to_string(),
+                    details: Some(vec!["Neither USB VID-matched ports nor fallback port names (usbmodem/ttyACM/COM) were found.".to_string()]),
+                }),
+                1 => Ok(fallback_ports[0].port_name.clone()),
+                _ => {
+                    // Multiple candidates, prefer cu.* on macOS if available
+                    let mut candidates = fallback_ports;
+                    let has_cu = candidates.iter().any(|p| p.port_name.contains("/cu."));
+                    if has_cu {
+                        candidates.retain(|p| p.port_name.contains("/cu."));
+                    }
+                    if candidates.len() == 1 {
+                        Ok(candidates[0].port_name.clone())
+                    } else {
+                        Err(ConfigError {
+                            message: format!("Found {} potential CircuitPython ports. Disconnect other devices and try again.", candidates.len()),
+                            details: None,
+                        })
+                    }
+                }
+            }
+        },
+        1 => Ok(circuitpython_ports[0].port_name.clone()),
         _ => {
-            // Multiple distinct Adafruit devices.
+            // Multiple distinct CircuitPython devices.
             // Future: correlate by USB serial number.
             Err(ConfigError {
                 message: format!(
                     "Found {} CircuitPython devices. Disconnect other devices and try again.",
-                    adafruit_ports.len()
+                    circuitpython_ports.len()
                 ),
                 details: None,
             })
@@ -514,12 +547,10 @@ fn find_device_serial_port(_device_path: &Path) -> Result<String, ConfigError> {
 /// (serial number, bus location) to target the specific device that was just saved.
 #[command]
 pub fn trigger_device_reload(device_path: String) -> Result<String, ConfigError> {
-    validate_device_path(&device_path)?;
+    let canonical_path = validate_device_path(&device_path)?;
+    verify_device_connected(&canonical_path)?;
 
-    let path_obj = Path::new(&device_path);
-    verify_device_connected(path_obj)?;
-
-    let serial_port = find_device_serial_port(path_obj)?;
+    let serial_port = find_device_serial_port(&canonical_path)?;
 
     let mut port = serialport::new(&serial_port, 115200)
         .timeout(Duration::from_secs(2))
@@ -545,13 +576,29 @@ pub fn trigger_device_reload(device_path: String) -> Result<String, ConfigError>
     std::thread::sleep(Duration::from_millis(500));
 
     // Drain any output from the interrupted program or REPL prompt
-    // Use a short timeout to avoid blocking if there's no output
+    // Loop until timeout to ensure buffer is fully drained
+    // Add hard cap to prevent hanging if device produces continuous output
     port.set_timeout(Duration::from_millis(100)).map_err(|e| ConfigError {
         message: format!("Failed to set drain timeout: {}", e),
         details: None,
     })?;
     let mut drain_buf = [0u8; 256];
-    let _ = port.read(&mut drain_buf);  // Best-effort drain, ignore result
+    let max_drain_iterations = 50;  // Max 5s drain time, 12.8KB data
+    let mut iterations = 0;
+    loop {
+        if iterations >= max_drain_iterations {
+            break;  // Hard cap to prevent hanging on continuous output
+        }
+        match port.read(&mut drain_buf) {
+            Ok(0) => break,  // No data available
+            Ok(_) => {
+                iterations += 1;
+                continue;  // Got data, keep draining
+            }
+            Err(ref e) if e.kind() == std::io::ErrorKind::TimedOut => break,  // Timeout means buffer is drained
+            Err(_) => break,  // Other errors, stop draining
+        }
+    }
     
     // Restore original timeout for subsequent operations
     port.set_timeout(Duration::from_secs(2)).map_err(|e| ConfigError {
