@@ -169,19 +169,21 @@ fn validate_device_path(path: &str) -> Result<PathBuf, ConfigError> {
 
 /// Check if a volume is still mounted (not being ejected)
 /// Compares device ID of volume vs root - if same, volume is not a separate filesystem
-#[cfg(unix)]
+#[cfg(not(target_os = "windows"))]
 fn is_volume_mounted(volume_path: &Path) -> bool {
-    if let (Ok(vol_meta), Ok(root_meta)) = (volume_path.metadata(), Path::new("/").metadata()) {
-        vol_meta.dev() != root_meta.dev()
-    } else {
-        false
+    #[cfg(unix)]
+    {
+        if let (Ok(vol_meta), Ok(root_meta)) = (volume_path.metadata(), Path::new("/").metadata()) {
+            vol_meta.dev() != root_meta.dev()
+        } else {
+            false
+        }
     }
-}
-
-#[cfg(not(unix))]
-fn is_volume_mounted(volume_path: &Path) -> bool {
-    // On non-Unix systems, just check if path exists
-    volume_path.exists()
+    #[cfg(not(unix))]
+    {
+        // On non-Unix systems, just check if path exists
+        volume_path.exists()
+    }
 }
 
 /// Get the volume/drive root path from a file path
@@ -212,6 +214,24 @@ fn get_volume_path(path: &Path) -> Option<PathBuf> {
 }
 
 /// Verify the device is still mounted before writing
+#[cfg(target_os = "windows")]
+fn verify_device_connected(path: &Path) -> Result<(), ConfigError> {
+    // On Windows, verify the file path exists (parent must exist for new files)
+    // The device scanner already filtered to safe drive types
+    if !path.exists() {
+        let parent = path.parent().unwrap_or(path);
+        if !parent.exists() {
+            return Err(ConfigError {
+                message: format!("Device path does not exist: {}", path.display()),
+                details: Some(vec!["Device may have been ejected or unmounted".to_string()]),
+            });
+        }
+    }
+    
+    Ok(())
+}
+
+#[cfg(not(target_os = "windows"))]
 fn verify_device_connected(path: &Path) -> Result<(), ConfigError> {
     if let Some(volume_path) = get_volume_path(path) {
         if !is_volume_mounted(&volume_path) {

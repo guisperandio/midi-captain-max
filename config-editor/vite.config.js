@@ -27,17 +27,5 @@ export default defineConfig(async () => ({
       // 3. tell Vite to ignore watching `src-tauri`
       ignored: ["**/src-tauri/**"],
     },
-  },
-  // Prevent Vite from trying to optimize Tauri plugins (they're runtime-resolved)
-  optimizeDeps: {
-    exclude: ["@tauri-apps/plugin-fs"]
-  },
-  build: {
-    rollupOptions: {
-      external: [
-        // Tauri plugins are resolved at runtime, not build time
-        "@tauri-apps/plugin-fs",
-      ]
-    }
   }
 }));

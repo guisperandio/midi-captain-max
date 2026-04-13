@@ -280,6 +280,9 @@
         }
       };
 
+      // Clear device selection when loading demo (no physical device)
+      selectedDevice.set(null);
+
       loadConfig(demoConfig);
       currentConfigRaw.set(JSON.stringify(demoConfig, null, 2));
       hasUnsavedChanges.set(false);
