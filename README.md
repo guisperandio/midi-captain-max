@@ -38,7 +38,9 @@ This firmware transforms your MIDI Captain into a **bidirectional MIDI controlle
 |--------|--------|
 | MIDI Captain STD10 (10-switch) | ✅ Fully working |
 | MIDI Captain Mini6 (6-switch) | ✅ Fully working |
-| 4, 2, 1-button variations | ❔ need hardware |
+| MIDI Captain Nano4 (4-switch) | ✅ Config validation working |
+| MIDI Captain Duo2 (2-switch) | ✅ Config validation working |
+| MIDI Captain One1 (1-switch) | ✅ Config validation working |
 
 # Installation
 

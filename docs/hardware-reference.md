@@ -1,10 +1,12 @@
 # MIDI Captain Hardware Reference
 
-> **Last Updated:** January 29, 2026  
-> **Verified On:** STD10 hardware with CircuitPython 7.3.1
+> **Last Updated:** April 13, 2026  
+> **Verified On:** STD10 and Mini6 hardware with CircuitPython 7.3.1
 
 This document contains verified hardware specifications for Paint Audio MIDI Captain devices.
 For historical context on how these were discovered, see [midicaptain_reverse_engineering_handoff.md](midicaptain_reverse_engineering_handoff.md).
+
+**Note:** Config validation and device type support has been added for Nano4 (4-switch), Duo2 (2-switch), and One1 (1-switch) variants, but detailed hardware specifications for these devices are pending physical device testing.
 
 ---
 

@@ -31,7 +31,7 @@ This repository creates **custom CircuitPython firmware** for Paint Audio MIDI C
 ### Primary Goals
 - **Bidirectional MIDI sync** — host controls LEDs/LCD state, device sends switch/encoder events
 - **Config-driven mapping** — JSON configuration for MIDI assignments and UI layouts
-- **Multi-device support** — STD10 (10-switch) and Mini6 (6-switch) primary targets
+- **Multi-device support** — STD10 (10-switch), Mini6 (6-switch), Nano4 (4-switch), Duo2 (2-switch), One1 (1-switch)
 - **Hybrid state model** — local toggle for instant feedback, host-authoritative when it speaks
 - **Clean architecture** — device abstraction layer, separation of concerns, testable components
 - **Rock-solid reliability** — NO unexpected resets during live performance; stability is paramount
@@ -73,7 +73,7 @@ These decisions were made during the 2026-01-23 brainstorming session:
 | 2 | Button label slots on screen | ✅ Working |
 | 3 | JSON config for button→MIDI mappings | ✅ Working |
 | 4 | Momentary + Toggle modes per button | ✅ Working |
-| 5 | Multi-device support (STD10 + Mini6) | ✅ Working |
+| 5 | Multi-device support (all 5 variants) | ✅ Working |
 | 6 | SysEx for dynamic labels/colors | Post-MVP |
 | 7 | Long-press detection | Post-MVP |
 | 8 | Center status area | Post-MVP |
@@ -114,7 +114,7 @@ All code in `firmware/original_helmut/` is authored by **Helmut Keller** and mus
 |------|---------|
 | `firmware/circuitpython/` | CircuitPython firmware (stable, production-ready) |
 | `firmware/circuitpython/original_helmut/` | Helmut Keller's original firmware — **DO NOT MODIFY** |
-| `firmware/circuitpython/devices/` | Device abstraction modules (std10.py, mini6.py) |
+| `firmware/circuitpython/devices/` | Device abstraction modules (std10.py, mini6.py, nano4.py, duo2.py, one1.py) |
 | `firmware/circuitpython/experiments/` | Throwaway experiments and proof-of-concepts |
 | `firmware/circuitpython/core/` | Core modules (button.py, config.py, colors.py) |
 | `firmware/circuitpython/fonts/` | PCF display fonts (PTSans variants) |
@@ -181,7 +181,7 @@ git push origin v1.0.0-alpha.1
 
 ## CircuitPython Practices
 
-This project uses CircuitPython firmware deployed to hardware devices (Mini6, MCM, STD10). Always verify changes work with the target hardware constraints. For mpy-cross, use Adafruit's CircuitPython builds, NOT MicroPython pip packages.
+This project uses CircuitPython firmware deployed to hardware devices (STD10, Mini6, Nano4, Duo2, One1). Always verify changes work with the target hardware constraints. For mpy-cross, use Adafruit's CircuitPython builds, NOT MicroPython pip packages.
 
 - Target **CircuitPython 7.x** (7.3.1 verified on devices)
 - Board identifies as `raspberry_pi_pico` (RP2040 MCU)
@@ -243,7 +243,7 @@ For historical context on reverse engineering, see [docs/midicaptain_reverse_eng
 
 ### Device Auto-Detection
 Two-tier detection (config first, then hardware probe):
-1. **Config-based**: reads `"device"` field from `/config.json` (`"mini6"` or `"std10"`)
+1. **Config-based**: reads `"device"` field from `/config.json` (`"std10"`, `"mini6"`, `"nano4"`, `"duo2"`, or `"one1"`)
 2. **Hardware probe fallback**: checks STD10-exclusive switch pins (GP0/GP18/GP19/GP20) — if 3+ read HIGH with pull-ups, it's STD10; otherwise Mini6
 
 **Note**: The old approach (probing `board.LED`/`board.VBUS_SENSE` for Mini6) was broken — GP25 exists on both devices, so everything was detected as Mini6. Always include `"device"` in config.json.
@@ -252,6 +252,9 @@ Two-tier detection (config first, then hardware probe):
 Device-specific constants live in `firmware/circuitpython/devices/`:
 - `std10.py` — STD10 pin definitions and counts ✅
 - `mini6.py` — Mini6 pin definitions ✅
+- `nano4.py` — Nano4 pin definitions ✅
+- `duo2.py` — Duo2 pin definitions ✅
+- `one1.py` — One1 pin definitions ✅
 
 ---
 
