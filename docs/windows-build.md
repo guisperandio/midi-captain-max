@@ -153,42 +153,128 @@ msiexec /x MIDI-Captain-MAX-Config-Editor-v1.0.0.msi /quiet
 
 ## Code Signing
 
-**Current status:** Windows builds are **unsigned**.
+**Current status:** Windows builds support **conditional code signing** via GitHub Secrets.
 
 Windows will show a SmartScreen warning when running unsigned installers:
 - "Windows protected your PC"
-- Click "More info" → "Run anyway"
+- Click "More info" → "Run anyway"  
 
-### Future: Code Signing Setup
+Signed installers eliminate this warning and show the publisher's verified identity.
 
-To sign Windows builds, configure:
+### Code Signing Setup (For Maintainers)
 
-1. **Acquire a code signing certificate:**
-   - Extended Validation (EV) certificate recommended
-   - From CA like DigiCert, Sectigo, or GlobalSign
-   - Cost: ~$300-500/year
+The CI workflow automatically signs Windows builds when a valid certificate is configured.
 
-2. **Add GitHub secrets:**
-   - `WINDOWS_CERTIFICATE` — Base64-encoded PFX file
-   - `WINDOWS_CERTIFICATE_PASSWORD` — PFX password
+#### Step 1: Acquire a Code Signing Certificate
 
-3. **Update workflow:**
+**Recommended:** Extended Validation (EV) Certificate for instant SmartScreen reputation
+
+**Certificate Authorities:**
+- **DigiCert** — https://www.digicert.com/signing/code-signing-certificates
+- **Sectigo** — https://sectigo.com/ssl-certificates-tls/code-signing
+- **GlobalSign** — https://www.globalsign.com/en/code-signing-certificate
+
+**Cost:** $300-500/year (EV), $100-200/year (OV/Organization Validation)
+
+**Delivery format:** `.pfx` or `.p12` file + password
+
+**Validation time:** 
+- OV certificates: 1-3 business days
+- EV certificates: 1-2 weeks (requires additional identity verification)
+
+#### Step 2: Prepare Certificate for CI
+
+Convert certificate to base64 for secure storage in GitHub Secrets:
+
+**On Windows (PowerShell):**
+```powershell
+$bytes = [IO.File]::ReadAllBytes("C:\path\to\certificate.pfx")
+$base64 = [Convert]::ToBase64String($bytes)
+$base64 | Set-Content certificate.txt
+```
+
+**On macOS/Linux:**
+```bash
+base64 -i certificate.pfx -o certificate.txt
+```
+
+#### Step 3: Add GitHub Secrets
+
+Add two repository secrets at: `Settings → Secrets and variables → Actions`
+
+1. **`WINDOWS_CERTIFICATE`**
+   - Value: Contents of `certificate.txt` (base64-encoded .pfx)
+   - Keep this secure — it's your identity!
+
+2. **`WINDOWS_CERTIFICATE_PASSWORD`**
+   - Value: Password used to protect the .pfx file
+
+#### Step 4: Verify Signing in CI
+
+Once secrets are added, the CI workflow will automatically:
+
+1. **Import certificate** (Windows build job)
    ```yaml
-   - name: Import code signing certificate
-     shell: pwsh
-     run: |
-       $pfx = [Convert]::FromBase64String("${{ secrets.WINDOWS_CERTIFICATE }}")
-       [IO.File]::WriteAllBytes("$pwd\cert.pfx", $pfx)
-       # Certificate will be automatically used by Tauri build
+   - name: Import Windows code signing certificate
+     env:
+       WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+       WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
    ```
 
-4. **Update tauri.conf.json:**
-   ```json
-   "windows": {
-     "certificateThumbprint": "<cert-thumbprint>",
-     "timestampUrl": "http://timestamp.digicert.com"
-   }
+2. **Configure Tauri** to use the certificate
+   ```yaml
+   - name: Enable code signing in Tauri config
+     if: env.WINDOWS_CERT_THUMBPRINT != ''
    ```
+
+3. **Sign installers** during build (automatic)
+
+4. **Timestamp signatures** for long-term validity
+   - URL: `http://timestamp.digicert.com`
+   - Ensures signatures remain valid after certificate expires
+
+#### Step 5: Verify Signed Builds
+
+After CI completes, download the artifacts and verify signatures:
+
+**On Windows (PowerShell):**
+```powershell
+# Check MSI signature
+Get-AuthenticodeSignature .\MIDI-Captain-MAX-Config-Editor-v1.0.0.msi
+
+# Expected output:
+# SignerCertificate: CN=Your Organization Name
+# Status: Valid
+```
+
+**Using SignTool (Windows SDK):**
+```powershell
+signtool verify /pa MIDI-Captain-MAX-Config-Editor-v1.0.0.msi
+
+# Expected output:
+# Successfully verified: MIDI-Captain-MAX-Config-Editor-v1.0.0.msi
+```
+
+### Certificate Security Best Practices
+
+1. **Never commit** the .pfx file or password to version control
+2. **Rotate certificates** before expiration to avoid build breaks
+3. **Use EV certificates** for immediate SmartScreen trust (no reputation build-up required)
+4. **Backup certificates** securely (loss requires re-issuance and user confusion)
+5. **Limit access** to GitHub repository secrets to trusted maintainers only
+
+### Unsigned Builds (Development)
+
+When `WINDOWS_CERTIFICATE` secret is not configured:
+- CI builds succeed with unsigned installers
+- Build summary shows: "⚠️ Builds are unsigned"
+- No code signing steps are executed
+- Users see SmartScreen warnings
+
+This is acceptable for:
+- Development branches
+- Testing builds
+- Open-source forks without certificates
 
 ## Troubleshooting
 

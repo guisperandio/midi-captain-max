@@ -383,6 +383,36 @@ jobs:
         with:
           workspaces: config-editor/src-tauri
 
+      - name: Import Windows code signing certificate
+        env:
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        shell: pwsh
+        run: |
+          # Skip if certificate not configured
+          if (-not $env:WINDOWS_CERTIFICATE) {
+            echo "⚠️ Code signing certificate not configured - building unsigned" >> $env:GITHUB_STEP_SUMMARY
+            exit 0
+          }
+          
+          # Decode and import certificate to user cert store
+          $bytes = [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE)
+          $certPath = Join-Path $env:RUNNER_TEMP "cert.pfx"
+          [IO.File]::WriteAllBytes($certPath, $bytes)
+          
+          # Import certificate to CurrentUser\My store
+          $cert = Import-PfxCertificate -FilePath $certPath `
+            -CertStoreLocation Cert:\CurrentUser\My `
+            -Password (ConvertTo-SecureString -String $env:WINDOWS_CERTIFICATE_PASSWORD -AsPlainText -Force)
+          
+          Remove-Item $certPath
+          
+          # Store thumbprint for later use
+          $thumbprint = $cert.Thumbprint
+          echo "WINDOWS_CERT_THUMBPRINT=$thumbprint" >> $env:GITHUB_ENV
+          
+          echo "✓ Code signing certificate imported (thumbprint: $thumbprint)" >> $env:GITHUB_STEP_SUMMARY
+
       - name: Install frontend dependencies
         run: |
           cd config-editor
@@ -392,6 +422,21 @@ jobs:
         uses: ./.github/actions/patch-config-editor-version
         with:
           semver: ${{ needs.lint.outputs.semver }}
+
+      - name: Enable code signing in Tauri config
+        if: env.WINDOWS_CERT_THUMBPRINT != ''
+        shell: pwsh
+        run: |
+          cd config-editor/src-tauri
+          
+          # Read, modify, and write tauri.conf.json
+          $config = Get-Content tauri.conf.json -Raw | ConvertFrom-Json
+          $config.bundle.windows.certificateThumbprint = $env:WINDOWS_CERT_THUMBPRINT
+          $config.bundle.windows.digestAlgorithm = "sha256"
+          $config.bundle.windows.timestampUrl = "http://timestamp.digicert.com"
+          $config | ConvertTo-Json -Depth 100 | Set-Content tauri.conf.json
+          
+          echo "✓ Code signing enabled in tauri.conf.json (thumbprint: $env:WINDOWS_CERT_THUMBPRINT)" >> $env:GITHUB_STEP_SUMMARY
 
       - name: Build Tauri app
         run: |
@@ -424,8 +469,13 @@ jobs:
           echo "- **MSI Installer** (Windows Installer format)" >> $GITHUB_STEP_SUMMARY
           echo "- **NSIS Installer** (Setup executable format)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Notes" >> $GITHUB_STEP_SUMMARY
-          echo "⚠️ Builds are unsigned. Users will see Windows SmartScreen warning." >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "See \`docs/windows-build.md\` for code signing setup." >> $GITHUB_STEP_SUMMARY
+          if [ -n "$WINDOWS_CERT_THUMBPRINT" ]; then
+            echo "### Code Signing" >> $GITHUB_STEP_SUMMARY
+            echo "✓ Installers are digitally signed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "### Notes" >> $GITHUB_STEP_SUMMARY
+            echo "⚠️ Builds are unsigned. Users will see Windows SmartScreen warning." >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "See \`docs/windows-build.md\` for code signing setup." >> $GITHUB_STEP_SUMMARY
+          fi
 
