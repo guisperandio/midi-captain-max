@@ -31,8 +31,8 @@ jobs:
         id: version
         run: |
           VERSION=$(git describe --tags --always 2>/dev/null || git rev-parse --short HEAD)
-          # Strip 'v' prefix and commit-distance suffix for semver (e.g. v1.5.0-11-gabc1234 → 1.5.0)
-          SEMVER=$(echo "$VERSION" | sed 's/^v//' | sed 's/-[0-9]*-g[a-f0-9]*$//')
+          # Strip 'v' or 'V' prefix and commit-distance suffix for semver (e.g. v1.5.0-11-gabc1234 → 1.5.0)
+          SEMVER=$(echo "$VERSION" | sed 's/^[Vv]//' | sed 's/-[0-9]*-g[a-f0-9]*$//')
           # If no tags exist, SEMVER will be just a commit hash (no dots) - use default dev version
           # MSI requires numeric-only pre-release identifiers (max 65535)
           if ! echo "$SEMVER" | grep -q '\.'; then
