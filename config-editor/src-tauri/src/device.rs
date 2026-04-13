@@ -2,7 +2,7 @@
 
 #[cfg(not(target_os = "windows"))]
 use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::Mutex;
@@ -60,6 +60,7 @@ pub fn parse_midi_captain_config(config_path: &std::path::Path) -> Option<String
 }
 
 /// Get the volumes directory for the current platform
+#[allow(dead_code)]
 fn get_volumes_path() -> PathBuf {
     #[cfg(target_os = "macos")]
     {

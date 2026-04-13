@@ -338,7 +338,7 @@ pub fn eject_device(path: String) -> Result<String, ConfigError> {
 
     let volume_name = get_path_volume_name(&canonical).unwrap_or_else(|| "device".to_string());
 
-    let volume_path_str = volume_path.to_string_lossy().to_string();
+    let _volume_path_str = volume_path.to_string_lossy().to_string();
 
     #[cfg(target_os = "macos")]
     {
