@@ -133,8 +133,31 @@ fn scan_windows_drives() -> Vec<DetectedDevice> {
             tracing::trace!(drive = %drive, drive_type, "Checking drive");
         }
 
-        // Now it's safe to check if the path exists and get volume info
-        if path.exists() {
+        // Check if path exists with timeout protection (Windows path.exists() can also hang)
+        // Use a simple timeout wrapper to avoid blocking on problematic drives
+        let path_exists = {
+            use std::sync::mpsc;
+            use std::thread;
+            
+            let path_clone = path.clone();
+            let (tx, rx) = mpsc::channel();
+            
+            thread::spawn(move || {
+                let exists = path_clone.exists();
+                let _ = tx.send(exists);
+            });
+            
+            // 200ms timeout for path.exists() - this should be instant for valid drives
+            match rx.recv_timeout(Duration::from_millis(200)) {
+                Ok(exists) => exists,
+                Err(_) => {
+                    tracing::warn!(drive = %drive, "path.exists() timed out or failed");
+                    false
+                }
+            }
+        };
+        
+        if path_exists {
             if let Some(device) = check_volume(&path) {
                 tracing::info!(drive = %drive, device_name = %device.name, "Found device");
                 devices.push(device);
