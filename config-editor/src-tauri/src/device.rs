@@ -94,6 +94,7 @@ fn scan_windows_drives() -> Vec<DetectedDevice> {
     use std::ffi::OsString;
     use std::os::windows::ffi::OsStrExt;
 
+    tracing::debug!("Starting Windows drive scan (C-Z)");
     let mut devices = Vec::new();
 
     // Check drive letters C-Z (skip A: and B: as they're typically floppy drives)
@@ -125,18 +126,23 @@ fn scan_windows_drives() -> Vec<DetectedDevice> {
             const DRIVE_RAMDISK: u32 = 6;
 
             if drive_type != DRIVE_REMOVABLE && drive_type != DRIVE_FIXED && drive_type != DRIVE_RAMDISK {
+                tracing::trace!(drive = %drive, drive_type, "Skipping drive (unsupported type)");
                 continue; // Skip this drive
             }
+            
+            tracing::trace!(drive = %drive, drive_type, "Checking drive");
         }
 
         // Now it's safe to check if the path exists and get volume info
         if path.exists() {
             if let Some(device) = check_volume(&path) {
+                tracing::info!(drive = %drive, device_name = %device.name, "Found device");
                 devices.push(device);
             }
         }
     }
 
+    tracing::debug!(device_count = devices.len(), "Windows drive scan complete");
     devices
 }
 
@@ -162,6 +168,7 @@ fn get_volume_name(path: &PathBuf) -> Option<String> {
     use std::sync::mpsc;
     use std::thread;
 
+    tracing::trace!(path = %path.display(), "Getting volume name");
     let path_clone = path.clone();
     let (tx, rx) = mpsc::channel();
     
@@ -207,7 +214,20 @@ fn get_volume_name(path: &PathBuf) -> Option<String> {
 
     // Wait for thread with 500ms timeout
     // If it hangs, we skip this drive and continue scanning
-    rx.recv_timeout(Duration::from_millis(500)).ok().flatten()
+    match rx.recv_timeout(Duration::from_millis(500)) {
+        Ok(Some(name)) => {
+            tracing::debug!(path = %path.display(), volume_name = %name, "Got volume name");
+            Some(name)
+        }
+        Ok(None) => {
+            tracing::debug!(path = %path.display(), "GetVolumeInformationW returned no name");
+            None
+        }
+        Err(_) => {
+            tracing::warn!(path = %path.display(), "GetVolumeInformationW timed out after 500ms");
+            None
+        }
+    }
 }
 
 #[cfg(not(target_os = "windows"))]
@@ -227,6 +247,8 @@ fn check_volume(path: &PathBuf) -> Option<DetectedDevice> {
     // Get volume name - return early if it fails
     let name = get_volume_name(path)?;
     
+    tracing::trace!(path = %path.display(), volume_name = %name, "Checking volume");
+    
     let config_path = path.join("config.json");
     
     // Use Result to handle any I/O errors gracefully
@@ -240,6 +262,14 @@ fn check_volume(path: &PathBuf) -> Option<DetectedDevice> {
     }).unwrap_or(false);
 
     if is_known_name || is_midi_config {
+        tracing::debug!(
+            path = %path.display(),
+            volume_name = %name,
+            has_config,
+            is_known_name,
+            is_midi_config,
+            "Detected MIDI Captain device"
+        );
         Some(DetectedDevice {
             name: name.to_string(),
             path: path.clone(),
@@ -247,34 +277,49 @@ fn check_volume(path: &PathBuf) -> Option<DetectedDevice> {
             has_config,
         })
     } else {
+        tracing::trace!(
+            path = %path.display(),
+            volume_name = %name,
+            "Not a MIDI Captain device"
+        );
         None
     }
 }
 
 /// Scan for connected devices
-#[command]
+#[tauri::command]
 pub fn scan_devices() -> Vec<DetectedDevice> {
-    #[cfg(target_os = "windows")]
-    {
-        scan_windows_drives()
-    }
-
-    #[cfg(not(target_os = "windows"))]
-    {
-        let volumes_path = get_volumes_path();
-        let mut devices = Vec::new();
-
-        if let Ok(entries) = std::fs::read_dir(&volumes_path) {
-            for entry in entries.flatten() {
-                let path = entry.path();
-                if let Some(device) = check_volume(&path) {
-                    devices.push(device);
-                }
-            }
+    tracing::info!("Scanning for MIDI Captain devices");
+    
+    let devices = {
+        #[cfg(target_os = "windows")]
+        {
+            scan_windows_drives()
         }
 
-        devices
-    }
+        #[cfg(not(target_os = "windows"))]
+        {
+            let volumes_path = get_volumes_path();
+            tracing::debug!(volumes_path = %volumes_path.display(), "Scanning volumes directory");
+            let mut devices = Vec::new();
+
+            if let Ok(entries) = std::fs::read_dir(&volumes_path) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if let Some(device) = check_volume(&path) {
+                        devices.push(device);
+                    }
+                }
+            } else {
+                tracing::warn!(volumes_path = %volumes_path.display(), "Failed to read volumes directory");
+            }
+
+            devices
+        }
+    };
+    
+    tracing::info!(device_count = devices.len(), "Device scan complete");
+    devices
 }
 
 // Global flag to prevent multiple watchers

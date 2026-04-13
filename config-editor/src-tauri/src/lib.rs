@@ -2,12 +2,21 @@ mod commands;
 mod midi;
 mod config;
 mod device;
+mod logging;
 
 use commands::*;
 use device::{scan_devices, start_device_watcher, stop_device_watcher};
+use logging::{get_log_path, get_recent_logs};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Initialize logging - errors are non-fatal, just log to stderr
+    if let Err(e) = logging::init() {
+        eprintln!("Failed to initialize logging: {}", e);
+    }
+    
+    tracing::info!("Starting MIDI Captain MAX Config Editor");
+    
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
@@ -27,7 +36,10 @@ pub fn run() {
 
             scan_devices,
             start_device_watcher,
-            stop_device_watcher
+            stop_device_watcher,
+            
+            get_log_path,
+            get_recent_logs
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

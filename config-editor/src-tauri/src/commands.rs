@@ -245,9 +245,20 @@ fn write_sync(path: &Path, data: &[u8]) -> Result<(), std::io::Error> {
 /// Read config from a file path
 #[command]
 pub fn read_config(path: String) -> Result<MidiCaptainConfig, ConfigError> {
-    let canonical = validate_device_path(&path)?;
-    let contents = fs::read_to_string(&canonical)?;
-    let config: MidiCaptainConfig = serde_json::from_str(&contents)?;
+    tracing::debug!(path = %path, "Reading config");
+    let canonical = validate_device_path(&path).map_err(|e| {
+        tracing::error!(path = %path, error = %e.message, "Failed to validate device path");
+        e
+    })?;
+    let contents = fs::read_to_string(&canonical).map_err(|e| {
+        tracing::error!(canonical = %canonical.display(), error = %e, "Failed to read config file");
+        ConfigError::from(e)
+    })?;
+    let config: MidiCaptainConfig = serde_json::from_str(&contents).map_err(|e| {
+        tracing::error!(canonical = %canonical.display(), error = %e, "Failed to parse config JSON");
+        ConfigError::from(e)
+    })?;
+    tracing::info!(path = %path, device = ?config.device, "Config loaded successfully");
     Ok(config)
 }
 
@@ -265,22 +276,38 @@ pub fn read_config_raw(path: String) -> Result<String, ConfigError> {
 /// Write config to a file path
 #[command]
 pub fn write_config(path: String, config: MidiCaptainConfig) -> Result<(), ConfigError> {
-    let canonical = validate_device_path(&path)?;
+    tracing::debug!(path = %path, device = ?config.device, "Writing config");
+    let canonical = validate_device_path(&path).map_err(|e| {
+        tracing::error!(path = %path, error = %e.message, "Failed to validate device path");
+        e
+    })?;
 
     // Verify volume is still mounted
-    verify_device_connected(&canonical)?;
+    verify_device_connected(&canonical).map_err(|e| {
+        tracing::error!(canonical = %canonical.display(), error = %e.message, "Device disconnected");
+        e
+    })?;
 
     // Validate before writing
     if let Err(errors) = config.validate() {
+        tracing::error!(canonical = %canonical.display(), errors = ?errors, "Config validation failed");
         return Err(ConfigError {
             message: "Validation failed".to_string(),
             details: Some(errors),
         });
     }
 
-    let json = serde_json::to_string_pretty(&config)?;
-    write_sync(&canonical, json.as_bytes())?;
+    let json = serde_json::to_string_pretty(&config).map_err(|e| {
+        tracing::error!(canonical = %canonical.display(), error = %e, "Failed to serialize config");
+        ConfigError::from(e)
+    })?;
+    
+    write_sync(&canonical, json.as_bytes()).map_err(|e| {
+        tracing::error!(canonical = %canonical.display(), error = %e, "Failed to write config file");
+        e
+    })?;
 
+    tracing::info!(path = %path, "Config written successfully");
     Ok(())
 }
 
@@ -328,12 +355,21 @@ pub fn validate_config(json: String) -> Result<(), ConfigError> {
 /// Safely eject/unmount a device volume
 #[command]
 pub fn eject_device(path: String) -> Result<String, ConfigError> {
+    tracing::info!(path = %path, "Ejecting device");
+    
     // Validate path and get canonical path (avoids double canonicalization)
-    let canonical = validate_device_path(&path)?;
+    let canonical = validate_device_path(&path).map_err(|e| {
+        tracing::error!(path = %path, error = %e.message, "Failed to validate device path for eject");
+        e
+    })?;
 
-    let volume_path = get_volume_path(&canonical).ok_or_else(|| ConfigError {
-        message: "Could not determine volume path".to_string(),
-        details: None,
+    let volume_path = get_volume_path(&canonical).ok_or_else(|| {
+        let err = ConfigError {
+            message: "Could not determine volume path".to_string(),
+            details: None,
+        };
+        tracing::error!(canonical = %canonical.display(), "Could not determine volume path");
+        err
     })?;
 
     let volume_name = get_path_volume_name(&canonical).unwrap_or_else(|| "device".to_string());
