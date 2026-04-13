@@ -6,7 +6,7 @@
 
 Includes a **GUI Config Editor**!
 
-![MIDI Captain MAX Config Editor](docs/img/New-editor.png)
+<img width="1403" height="905" alt="image" src="https://github.com/user-attachments/assets/cd6accb4-a47d-42fd-ab44-0682c65e965b" />
 
 ## What It Does
 
