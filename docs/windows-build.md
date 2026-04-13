@@ -192,6 +192,36 @@ To sign Windows builds, configure:
 
 ## Troubleshooting
 
+### "500 error" when scanning for devices
+
+**Symptom:** Editor shows a 500 error on Windows startup when scanning for devices.
+
+**Cause:** The device scanner was checking all drive letters A-Z, including:
+- Floppy drives (A:, B:) which can hang when accessed
+- CD-ROM drives without media which can trigger system dialogs
+- Network drives that are disconnected which can timeout
+- Empty removable drives which can cause I/O errors
+
+**Fix (v1.1.0+):** Device scanner now:
+1. Starts from C: instead of A: to skip floppy drives
+2. Uses `GetDriveTypeW` to check drive type before accessing
+3. Only scans safe drive types:
+   - `DRIVE_FIXED` (3) — Local hard drives
+   - `DRIVE_REMOVABLE` (2) — USB drives, SD cards
+   - `DRIVE_RAMDISK` (6) — RAM disks
+4. Skips problematic drive types:
+   - `DRIVE_CDROM` (5) — CD/DVD drives
+   - `DRIVE_REMOTE` (4) — Network drives
+   - `DRIVE_UNKNOWN` (0) — Unknown drive types
+5. Wraps volume checks in error handlers to prevent panics
+
+**Verification:**
+```rust
+// File: config-editor/src-tauri/src/device.rs
+// Look for GetDriveTypeW call in scan_windows_drives()
+let drive_type = winapi::um::fileapi::GetDriveTypeW(drive_wide.as_ptr());
+```
+
 ### "Rust not found" error
 - Ensure `rust-toolchain@stable` action runs before build
 - Check Windows runner has Rust in PATH

@@ -91,15 +91,46 @@ fn get_volumes_path() -> PathBuf {
 /// Scan for devices on Windows by checking all drive letters
 #[cfg(target_os = "windows")]
 fn scan_windows_drives() -> Vec<DetectedDevice> {
+    use std::ffi::OsString;
+    use std::os::windows::ffi::OsStrExt;
+
     let mut devices = Vec::new();
 
-    // Check drive letters A-Z
-    for letter in b'A'..=b'Z' {
+    // Check drive letters C-Z (skip A: and B: as they're typically floppy drives)
+    // Start from C: to avoid system drives and floppy drives that can hang
+    for letter in b'C'..=b'Z' {
         let drive = format!("{}:\\", letter as char);
         let path = PathBuf::from(&drive);
 
+        // Check drive type before accessing to avoid hangs and timeouts
+        unsafe {
+            let drive_wide: Vec<u16> = OsString::from(&drive)
+                .encode_wide()
+                .chain(Some(0))
+                .collect();
+
+            let drive_type = winapi::um::fileapi::GetDriveTypeW(drive_wide.as_ptr());
+
+            // Only check drives that are safe to access:
+            // DRIVE_FIXED (3) = Local hard drive
+            // DRIVE_REMOVABLE (2) = USB drives, SD cards, etc.
+            // DRIVE_RAMDISK (6) = RAM disk (rare but possible)
+            // Skip:
+            // DRIVE_UNKNOWN (0) = Drive type cannot be determined
+            // DRIVE_NO_ROOT_DIR (1) = Root path is invalid
+            // DRIVE_CDROM (5) = CD-ROM/DVD drive (can hang if no media)
+            // DRIVE_REMOTE (4) = Network drive (can timeout)
+            const DRIVE_REMOVABLE: u32 = 2;
+            const DRIVE_FIXED: u32 = 3;
+            const DRIVE_RAMDISK: u32 = 6;
+
+            if drive_type != DRIVE_REMOVABLE && drive_type != DRIVE_FIXED && drive_type != DRIVE_RAMDISK {
+                continue; // Skip this drive
+            }
+        }
+
+        // Now it's safe to check if the path exists and get volume info
         if path.exists() {
-            // Get volume label
             if let Some(device) = check_volume(&path) {
                 devices.push(device);
             }
@@ -173,13 +204,22 @@ fn get_volume_name(path: &Path) -> Option<String> {
 ///    This covers user-renamed drives (e.g. renamed in Finder) where the
 ///    volume name no longer matches the default "MIDICAPTAIN".
 fn check_volume(path: &PathBuf) -> Option<DetectedDevice> {
+    // Get volume name - return early if it fails
     let name = get_volume_name(path)?;
+    
     let config_path = path.join("config.json");
+    
+    // Use Result to handle any I/O errors gracefully
     let has_config = config_path.exists();
-
     let is_known_name = DEVICE_VOLUMES.iter().any(|v| name.eq_ignore_ascii_case(v));
 
-    if is_known_name || is_midi_captain_config(&config_path) {
+    // Check if it's a known volume or has a valid MIDI Captain config
+    // Wrap is_midi_captain_config in a try-catch to prevent panics on I/O errors
+    let is_midi_config = std::panic::catch_unwind(|| {
+        is_midi_captain_config(&config_path)
+    }).unwrap_or(false);
+
+    if is_known_name || is_midi_config {
         Some(DetectedDevice {
             name: name.to_string(),
             path: path.clone(),

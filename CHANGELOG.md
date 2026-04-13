@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Fixed
+- **Windows device scanning 500 error**: Fixed hang/timeout when scanning for devices on Windows
+  - Changed drive scan range from A-Z to C-Z (skip floppy drives A: and B:)
+  - Added `GetDriveTypeW` check to filter out problematic drive types before accessing
+  - Only scan safe drives: DRIVE_FIXED (local), DRIVE_REMOVABLE (USB), DRIVE_RAMDISK
+  - Skip CD-ROM drives (can hang if no media), network drives (can timeout), and unknown drives
+  - Added panic handlers in `check_volume()` to prevent crashes on I/O errors
+  - Added "winerror" feature to winapi dependency for better error handling
+  - **Impact**: Eliminates 500 errors on startup caused by inaccessible drives
+
 ## [Conditional Actions] - 2026-03-23
 
 ### Added
