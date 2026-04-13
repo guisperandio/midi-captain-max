@@ -160,12 +160,17 @@ pub struct DetectedDevice {
 /// On Windows, GetVolumeInformationW can hang for 30+ seconds on network drives,
 /// disconnected drives, or drives with permission issues. This wrapper adds a
 /// 500ms timeout to prevent the app from freezing.
+///
+/// Note: If GetVolumeInformationW hangs, the background thread will remain blocked.
+/// This is an acceptable tradeoff since Windows drive scanning happens infrequently
+/// (on app launch or manual refresh). A proper solution would require using
+/// overlapped I/O with cancellation, which is significantly more complex.
 #[cfg(target_os = "windows")]
 fn get_volume_name(path: &PathBuf) -> Option<String> {
     use std::ffi::OsString;
     use std::os::windows::ffi::OsStrExt;
     use std::os::windows::ffi::OsStringExt;
-    use std::sync::mpsc;
+    use std::sync::mpsc::{self, RecvTimeoutError};
     use std::thread;
 
     tracing::trace!(path = %path.display(), "Getting volume name");
@@ -173,6 +178,8 @@ fn get_volume_name(path: &PathBuf) -> Option<String> {
     let (tx, rx) = mpsc::channel();
     
     // Spawn a thread to call GetVolumeInformationW with a timeout
+    // WARNING: If GetVolumeInformationW hangs, this thread will remain blocked.
+    // This is acceptable for infrequent operations, but not ideal for high-frequency scans.
     thread::spawn(move || {
         let result = (|| {
             let path_str = path_clone.to_str()?;
@@ -213,7 +220,6 @@ fn get_volume_name(path: &PathBuf) -> Option<String> {
     });
 
     // Wait for thread with 500ms timeout
-    // If it hangs, we skip this drive and continue scanning
     match rx.recv_timeout(Duration::from_millis(500)) {
         Ok(Some(name)) => {
             tracing::debug!(path = %path.display(), volume_name = %name, "Got volume name");
@@ -223,8 +229,12 @@ fn get_volume_name(path: &PathBuf) -> Option<String> {
             tracing::debug!(path = %path.display(), "GetVolumeInformationW returned no name");
             None
         }
-        Err(_) => {
+        Err(RecvTimeoutError::Timeout) => {
             tracing::warn!(path = %path.display(), "GetVolumeInformationW timed out after 500ms");
+            None
+        }
+        Err(RecvTimeoutError::Disconnected) => {
+            tracing::error!(path = %path.display(), "GetVolumeInformationW thread panicked or disconnected");
             None
         }
     }
@@ -287,7 +297,7 @@ fn check_volume(path: &PathBuf) -> Option<DetectedDevice> {
 }
 
 /// Scan for connected devices
-#[tauri::command]
+#[command]
 pub fn scan_devices() -> Vec<DetectedDevice> {
     tracing::info!("Scanning for MIDI Captain devices");
     
