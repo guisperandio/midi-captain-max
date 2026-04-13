@@ -149,45 +149,65 @@ pub struct DetectedDevice {
     pub has_config: bool,
 }
 
-/// Get the volume name for a given path
+/// Get the volume name for a given path with timeout protection
+///
+/// On Windows, GetVolumeInformationW can hang for 30+ seconds on network drives,
+/// disconnected drives, or drives with permission issues. This wrapper adds a
+/// 500ms timeout to prevent the app from freezing.
 #[cfg(target_os = "windows")]
 fn get_volume_name(path: &PathBuf) -> Option<String> {
     use std::ffi::OsString;
     use std::os::windows::ffi::OsStrExt;
     use std::os::windows::ffi::OsStringExt;
+    use std::sync::mpsc;
+    use std::thread;
 
-    let path_str = path.to_str()?;
-    let mut volume_name: Vec<u16> = vec![0; 261]; // MAX_PATH + 1
+    let path_clone = path.clone();
+    let (tx, rx) = mpsc::channel();
+    
+    // Spawn a thread to call GetVolumeInformationW with a timeout
+    thread::spawn(move || {
+        let result = (|| {
+            let path_str = path_clone.to_str()?;
+            let mut volume_name: Vec<u16> = vec![0; 261]; // MAX_PATH + 1
 
-    unsafe {
-        let root: Vec<u16> = OsString::from(path_str)
-            .encode_wide()
-            .chain(Some(0))
-            .collect();
+            unsafe {
+                let root: Vec<u16> = OsString::from(path_str)
+                    .encode_wide()
+                    .chain(Some(0))
+                    .collect();
 
-        let result = winapi::um::fileapi::GetVolumeInformationW(
-            root.as_ptr(),
-            volume_name.as_mut_ptr(),
-            volume_name.len() as winapi::shared::minwindef::DWORD,
-            std::ptr::null_mut(),
-            std::ptr::null_mut(),
-            std::ptr::null_mut(),
-            std::ptr::null_mut(),
-            0,
-        );
+                let result = winapi::um::fileapi::GetVolumeInformationW(
+                    root.as_ptr(),
+                    volume_name.as_mut_ptr(),
+                    volume_name.len() as winapi::shared::minwindef::DWORD,
+                    std::ptr::null_mut(),
+                    std::ptr::null_mut(),
+                    std::ptr::null_mut(),
+                    std::ptr::null_mut(),
+                    0,
+                );
 
-        if result != 0 {
-            // Find null terminator
-            let len = volume_name
-                .iter()
-                .position(|&c| c == 0)
-                .unwrap_or(volume_name.len());
-            let name = OsString::from_wide(&volume_name[..len]);
-            return name.into_string().ok();
-        }
-    }
+                if result != 0 {
+                    // Find null terminator
+                    let len = volume_name
+                        .iter()
+                        .position(|&c| c == 0)
+                        .unwrap_or(volume_name.len());
+                    let name = OsString::from_wide(&volume_name[..len]);
+                    return name.into_string().ok();
+                }
+            }
 
-    None
+            None
+        })();
+        
+        let _ = tx.send(result);
+    });
+
+    // Wait for thread with 500ms timeout
+    // If it hangs, we skip this drive and continue scanning
+    rx.recv_timeout(Duration::from_millis(500)).ok().flatten()
 }
 
 #[cfg(not(target_os = "windows"))]
