@@ -223,8 +223,7 @@ pub struct ButtonConfig {
     pub long_release: Option<Vec<CommandOrConditional>>,
     #[serde(
         default,
-        skip_serializing_if = "Option::is_none",
-        deserialize_with = "deserialize_one_or_many"
+        skip_serializing_if = "Option::is_none"
     )]
     pub double_press: Option<Vec<MidiCommand>>,
     #[serde(skip_serializing_if = "Option::is_none")]
