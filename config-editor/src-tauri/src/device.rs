@@ -16,7 +16,7 @@ use std::collections::HashSet;
 const DEVICE_VOLUMES: &[&str] = &["CIRCUITPY", "MIDICAPTAIN"];
 
 /// Check if a path contains a recognizable MIDI Captain config.json by
-/// looking for the "device" key with value "std10" or "mini6".
+/// looking for the "device" key with value "std10", "mini6", "nano4", "duo2", or "one1".
 ///
 /// Used as a fallback when the volume name is not in `DEVICE_VOLUMES` —
 /// i.e., the user has configured a custom `usb_drive_name` in their config.
@@ -32,7 +32,7 @@ pub fn is_midi_captain_config(config_path: &std::path::Path) -> bool {
     };
     matches!(
         value.get("device").and_then(|v| v.as_str()),
-        Some("std10") | Some("mini6")
+        Some("std10") | Some("mini6") | Some("nano4") | Some("duo2") | Some("one1")
     )
 }
 
@@ -49,7 +49,7 @@ pub fn parse_midi_captain_config(config_path: &std::path::Path) -> Option<String
     let contents = std::fs::read_to_string(config_path).ok()?;
     let value: serde_json::Value = serde_json::from_str(&contents).ok()?;
     let device = value.get("device").and_then(|v| v.as_str())?;
-    if device != "std10" && device != "mini6" {
+    if device != "std10" && device != "mini6" && device != "nano4" && device != "duo2" && device != "one1" {
         return None;
     }
     // Return usb_drive_name only if explicitly set — no default fallback
@@ -200,7 +200,7 @@ fn get_volume_name(path: &Path) -> Option<String> {
 /// Accepts:
 /// 1. Volumes with a known name (CIRCUITPY, MIDICAPTAIN), or
 /// 2. Volumes whose config.json identifies as a MIDI Captain device
-///    (has `"device": "std10"` or `"mini6"`).
+///    (has `"device": "std10"`, `"mini6"`, `"nano4"`, `"duo2"`, or `"one1"`).
 ///    This covers user-renamed drives (e.g. renamed in Finder) where the
 ///    volume name no longer matches the default "MIDICAPTAIN".
 fn check_volume(path: &PathBuf) -> Option<DetectedDevice> {
