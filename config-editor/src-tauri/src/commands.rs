@@ -2,7 +2,7 @@
 
 use crate::config::MidiCaptainConfig;
 use std::fs::{self, OpenOptions};
-use std::io::Write;
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 use tauri::command;
@@ -438,8 +438,8 @@ pub fn eject_device(path: String) -> Result<String, ConfigError> {
 const ADAFRUIT_VID: u16 = 0x239A;
 
 /// Find a CircuitPython serial port by looking for Adafruit VID.
-/// On macOS each USB serial device appears as both `/dev/cu.*` and `/dev/tty.*`.
-/// We deduplicate by USB serial number and prefer `cu.*` (doesn't block on open).
+/// On macOS each USB serial device may appear as both `/dev/cu.*` and `/dev/tty.*`.
+/// When both are present, prefer `cu.*` (it doesn't block on open).
 fn find_device_serial_port(_device_path: &Path) -> Result<String, ConfigError> {
     let ports = serialport::available_ports().map_err(|e| ConfigError {
         message: format!("Failed to enumerate serial ports: {}", e),
