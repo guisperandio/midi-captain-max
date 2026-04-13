@@ -397,13 +397,27 @@ pub fn eject_device(path: String) -> Result<String, ConfigError> {
     #[cfg(target_os = "windows")]
     {
         // Use PowerShell Shell.Application COM object for safe USB eject
-        // Get drive letter (e.g., "E:" from "E:\\")
-        let drive = volume_path_str
-            .get(..2)
-            .ok_or_else(|| ConfigError {
-                message: "Could not determine drive letter".to_string(),
-                details: None,
-            })?;
+        // Get drive letter (e.g., "E:"), handling both normal and verbatim paths
+        let drive = match volume_path.components().next() {
+            Some(std::path::Component::Prefix(prefix_component)) => match prefix_component.kind() {
+                std::path::Prefix::Disk(letter)
+                | std::path::Prefix::VerbatimDisk(letter) => {
+                    format!("{}:", char::from(letter))
+                }
+                _ => {
+                    return Err(ConfigError {
+                        message: "Could not determine drive letter".to_string(),
+                        details: None,
+                    });
+                }
+            },
+            _ => {
+                return Err(ConfigError {
+                    message: "Could not determine drive letter".to_string(),
+                    details: None,
+                });
+            }
+        };
 
         let script = format!(
             "(New-Object -ComObject Shell.Application).Namespace(17).ParseName('{}').InvokeVerb('Eject')",
@@ -531,8 +545,19 @@ pub fn trigger_device_reload(device_path: String) -> Result<String, ConfigError>
     std::thread::sleep(Duration::from_millis(500));
 
     // Drain any output from the interrupted program or REPL prompt
+    // Use a short timeout to avoid blocking if there's no output
+    port.set_timeout(Duration::from_millis(100)).map_err(|e| ConfigError {
+        message: format!("Failed to set drain timeout: {}", e),
+        details: None,
+    })?;
     let mut drain_buf = [0u8; 256];
-    let _ = port.read(&mut drain_buf);
+    let _ = port.read(&mut drain_buf);  // Best-effort drain, ignore result
+    
+    // Restore original timeout for subsequent operations
+    port.set_timeout(Duration::from_secs(2)).map_err(|e| ConfigError {
+        message: format!("Failed to restore timeout: {}", e),
+        details: None,
+    })?;
 
     // Ctrl-D: soft reload — restarts code.py with new config
     // Send twice for Windows reliability
