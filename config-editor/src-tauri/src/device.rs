@@ -2,7 +2,7 @@
 
 #[cfg(not(target_os = "windows"))]
 use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::Mutex;
@@ -193,7 +193,7 @@ fn get_volume_name(path: &PathBuf) -> Option<String> {
 
 #[cfg(not(target_os = "windows"))]
 fn get_volume_name(path: &Path) -> Option<String> {
-    path.file_name()?.to_str().map(|s| s.to_string())
+    path.file_name()?.to_str().map(|s: &str| s.to_string())
 }
 
 /// Check if a volume is a MIDI Captain device.
