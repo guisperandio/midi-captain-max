@@ -60,7 +60,7 @@ pub fn parse_midi_captain_config(config_path: &std::path::Path) -> Option<String
 }
 
 /// Get the volumes directory for the current platform
-#[allow(dead_code)]
+#[cfg(not(target_os = "windows"))]
 fn get_volumes_path() -> PathBuf {
     #[cfg(target_os = "macos")]
     {
