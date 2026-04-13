@@ -31,8 +31,14 @@ import supervisor
 import time
 
 # DISABLED for live performance stability - no unexpected resets
-# CP 7.x uses supervisor.disable_autoreload(), not runtime.autoreload
-supervisor.disable_autoreload()
+# CP 8.x+ uses supervisor.runtime.autoreload property
+# CP 7.x uses supervisor.disable_autoreload() function (deprecated in 8.x+)
+try:
+    # Try CP 8.x+ API first
+    supervisor.runtime.autoreload = False
+except AttributeError:
+    # Fallback to CP 7.x API
+    supervisor.disable_autoreload()
 
 # Load config settings needed at boot time (drive name + dev mode).
 # boot.py runs before normal module search paths are established,

@@ -63,6 +63,7 @@ LABEL_RETURN_TIMEOUT_SEC = 3.0  # Seconds before label returns to selected butto
 
 # Button behavior
 DEFAULT_LONG_PRESS_MS = 500  # Default long-press threshold
+DEFAULT_DOUBLE_PRESS_TIMEOUT_MS = 300  # Max time between presses for double-press
 PC_FLASH_DURATION_MS = 200  # PC button visual flash duration
 
 # Tap tempo

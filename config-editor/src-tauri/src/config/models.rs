@@ -221,6 +221,14 @@ pub struct ButtonConfig {
         deserialize_with = "deserialize_one_or_many"
     )]
     pub long_release: Option<Vec<CommandOrConditional>>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_one_or_many"
+    )]
+    pub double_press: Option<Vec<MidiCommand>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub double_press_timeout_ms: Option<u16>,
 
     // ===== LEGACY: Single-type fields (for backwards compatibility) =====
     #[serde(
@@ -462,6 +470,8 @@ pub struct MidiCaptainConfig {
     pub splash_screen: Option<SplashScreenConfig>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub long_press_threshold_ms: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub double_press_timeout_ms: Option<u16>,
 }
 
 impl MidiCaptainConfig {

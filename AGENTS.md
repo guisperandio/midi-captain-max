@@ -183,7 +183,7 @@ git push origin v1.0.0-alpha.1
 
 This project uses CircuitPython firmware deployed to hardware devices (STD10, Mini6, Nano4, Duo2, One1). Always verify changes work with the target hardware constraints. For mpy-cross, use Adafruit's CircuitPython builds, NOT MicroPython pip packages.
 
-- Target **CircuitPython 7.x** (7.3.1 verified on devices)
+- Target **CircuitPython 7.x or 8.x+** (tested on 7.3.1, compatible with 8.x/9.x)
 - Board identifies as `raspberry_pi_pico` (RP2040 MCU)
 - USB CDC disconnects on reset — use auto-reconnect serial workflows
 - `boot.py` uses GP1 as a mode pin; readable at boot, usable as switch afterward
@@ -193,9 +193,9 @@ This project uses CircuitPython firmware deployed to hardware devices (STD10, Mi
 
 | Feature | CP 7.x | CP 8.x+ |
 |---------|--------|---------|
-| Disable autoreload | `supervisor.disable_autoreload()` | `supervisor.runtime.autoreload = False` |
+| Disable autoreload | `supervisor.disable_autoreload()` (deprecated in 8.x+) | `supervisor.runtime.autoreload = False` |
 
-**TODO**: When upgrading to CircuitPython 8.x+, update `boot.py` to use `supervisor.runtime.autoreload = False` instead of `supervisor.disable_autoreload()`.
+**Compatibility**: `boot.py` automatically detects CP version and uses the appropriate API via try/except fallback.
 
 ### CP 7.x Syntax Restrictions (CRITICAL)
 

@@ -134,6 +134,8 @@ export interface ButtonConfig {
   release?: CommandOrConditional[];    // Commands dispatched on button release (short press)
   long_press?: CommandOrConditional[]; // Commands dispatched when hold threshold crossed
   long_release?: CommandOrConditional[]; // Commands dispatched on release after long press
+  double_press?: MidiCommand[];        // Commands dispatched on double-press (within timeout window)
+  double_press_timeout_ms?: number;    // Max milliseconds between presses for double-press detection (default: 300)
 
   // ===== LEGACY: Single-type fields (for backwards compatibility) =====
   // These are automatically migrated to event arrays by the firmware
@@ -255,6 +257,8 @@ export interface MidiCaptainConfig {
   midi_transport?: MidiTransport; // "usb" (default) | "trs" | "both"
   // Optional global default threshold for long-press in milliseconds
   long_press_threshold_ms?: number;
+  // Optional global default timeout for double-press detection in milliseconds
+  double_press_timeout_ms?: number;
 
   // ===== MULTI-BANK SUPPORT =====
   // If 'banks' is present, use multi-bank mode (preferred)

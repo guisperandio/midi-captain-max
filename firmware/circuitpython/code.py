@@ -57,7 +57,8 @@ from core.constants import (
     LED_GLOBAL_BRIGHTNESS, LED_DEFAULT_OFF_MODE, LED_DEFAULT_DIM_BRIGHTNESS,
     DEFAULT_MIDI_CHANNEL, MIDI_CHANNEL_COUNT, MIDI_VALUE_CENTER,
     USB_MIDI_BUFFER_SIZE,
-    LABEL_RETURN_TIMEOUT_SEC, DEFAULT_LONG_PRESS_MS, PC_FLASH_DURATION_MS,
+    LABEL_RETURN_TIMEOUT_SEC, DEFAULT_LONG_PRESS_MS, DEFAULT_DOUBLE_PRESS_TIMEOUT_MS,
+    PC_FLASH_DURATION_MS,
     TAP_HISTORY_SIZE, TAP_MIN_INTERVAL_MS, TAP_MAX_INTERVAL_MS,
     TAP_DEFAULT_RATE_MS, TAP_ACTIVE_WINDOW_MULTIPLIER,
     VBAT_FILTER_ALPHA, PC_VALUES_SIZE,
@@ -658,19 +659,12 @@ state_at_press = [None] * BUTTON_COUNT
 # Default threshold (ms) if not provided per-button; can be overridden in config
 LONG_PRESS_THRESHOLD_MS = config.get("long_press_threshold_ms", DEFAULT_LONG_PRESS_MS)
 
-pc_values = [0] * MIDI_CHANNEL_COUNT  # Current PC value per MIDI channel, shared across all pc_inc/pc_dec buttons
-pc_flash_timers = [0.0] * BUTTON_COUNT  # Expiry time (monotonic) for PC button flash; 0 = inactive
+# Double-press support state
+# Per-button: time when button was last released (monotonic), 0 if never released
+last_release_times = [0.0] * BUTTON_COUNT
+# Default double-press timeout (ms) if not provided in config
+DOUBLE_PRESS_TIMEOUT_MS = config.get("double_press_timeout_ms", DEFAULT_DOUBLE_PRESS_TIMEOUT_MS)
 
-# Track received CC values for conditional actions: received_cc_values[channel][cc] = value
-# Initialize with empty dicts for each channel
-received_cc_values = {}
-for ch in range(MIDI_CHANNEL_COUNT):
-    received_cc_values[ch] = {}
-
-encoder_value = ENC_INITIAL  # Internal value 0-127
-encoder_slot = -1  # Current slot (set on first change)
-
-# Blink/tap mode state (per-button)
 blink_state = [False] * BUTTON_COUNT        # Current visual blink state (True=show ON color, False=show OFF color)
 blink_next_toggle = [0.0] * BUTTON_COUNT    # Next monotonic time to toggle blink state
 blink_rate_ms = [config.get("tap_rate_ms", 500)] * BUTTON_COUNT
@@ -1812,6 +1806,24 @@ def handle_switches():
                         'keytimes': [button_states[si].current_keytime for si in range(len(button_states))],
                     }
 
+                # Check for double-press
+                double_press_cfg = btn_config.get("double_press")
+                if double_press_cfg:
+                    # Get timeout for this button (button-level override or global default)
+                    timeout_ms = btn_config.get("double_press_timeout_ms", DOUBLE_PRESS_TIMEOUT_MS)
+                    timeout_sec = timeout_ms / 1000.0
+                    last_release = last_release_times[idx]
+                    
+                    if last_release > 0 and (now - last_release) <= timeout_sec:
+                        # Double-press detected!
+                        print(f"[DOUBLE-PRESS] Button {btn_num} double-pressed (interval: {(now - last_release)*1000:.0f}ms)")
+                        _send_action_from_cfg(double_press_cfg, btn_num, idx, "double_press")
+                        short_action_executed[idx] = True
+                        # Reset last release time to prevent triple-press being detected as another double-press
+                        last_release_times[idx] = 0.0
+                        # Skip normal press handling - double-press takes priority
+                        continue
+
                 # Check for bank switching button
                 if bank_manager and bank_switch_config and len(banks) > 0:
                     method = bank_switch_config.get("method", "button")
@@ -1925,6 +1937,9 @@ def handle_switches():
                 press_start_times[idx] = 0.0
                 was_long = long_press_triggered[idx]
                 long_press_triggered[idx] = False
+                
+                # Record release time for double-press detection
+                last_release_times[idx] = now
 
                 if was_long:
                     # Long-press completed: dispatch long_release if configured
