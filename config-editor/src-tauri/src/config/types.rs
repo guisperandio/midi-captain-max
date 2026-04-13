@@ -74,6 +74,9 @@ pub enum DeviceType {
     #[default]
     Std10,
     Mini6,
+    Nano4,
+    Duo2,
+    One1,
 }
 
 /// Bank switching method

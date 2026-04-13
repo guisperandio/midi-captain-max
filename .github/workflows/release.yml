@@ -142,6 +142,7 @@ jobs:
         id: create_release
         uses: softprops/action-gh-release@v2
         with:
+          draft: true  # Create as draft to test artifacts before publishing
           prerelease:  ${{ steps.header.outputs.PRERELEASE }}
           make_latest: ${{ steps.header.outputs.PRERELEASE != 'true' }}
           generate_release_notes: true
@@ -153,7 +154,9 @@ jobs:
       - name: Print Release
         run: |
           { 
-            echo "Release \`$VERSION\` created successfully!"
+            echo "Draft release \`$VERSION\` created successfully!"
+            echo ""
+            echo "⚠️ **Release is in DRAFT mode** - Review and test artifacts, then manually publish in GitHub UI"
             echo ""
             echo "Release URL: ${{ steps.create_release.outputs.url }}"
           } >> $GITHUB_STEP_SUMMARY

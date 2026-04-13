@@ -4,6 +4,7 @@ use crate::config::MidiCaptainConfig;
 use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 use tauri::command;
 
 #[cfg(unix)]
@@ -395,15 +396,37 @@ pub fn eject_device(path: String) -> Result<String, ConfigError> {
 
     #[cfg(target_os = "windows")]
     {
-        // Windows doesn't have a simple eject command for USB drives
-        // Recommend using the system tray "Safely Remove Hardware"
-        Err(ConfigError {
-            message: format!(
-                "Please use Windows 'Safely Remove Hardware' to eject '{}'.\n\nLook for the USB icon in the system tray (bottom-right), click it, and select 'Eject {}'.",
-                volume_name, volume_name
-            ),
-            details: None,
-        })
+        // Use PowerShell Shell.Application COM object for safe USB eject
+        // Get drive letter (e.g., "E:" from "E:\\")
+        let drive = volume_path_str
+            .get(..2)
+            .ok_or_else(|| ConfigError {
+                message: "Could not determine drive letter".to_string(),
+                details: None,
+            })?;
+
+        let script = format!(
+            "(New-Object -ComObject Shell.Application).Namespace(17).ParseName('{}').InvokeVerb('Eject')",
+            drive
+        );
+
+        let output = std::process::Command::new("powershell")
+            .args(["-NoProfile", "-Command", &script])
+            .output()
+            .map_err(|e| ConfigError {
+                message: format!("Failed to run PowerShell eject: {}", e),
+                details: None,
+            })?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(ConfigError {
+                message: format!("Eject failed: {}. You can manually eject using 'Safely Remove Hardware' in the system tray.", stderr.trim()),
+                details: None,
+            });
+        }
+
+        Ok(format!("Device '{}' ejected successfully", volume_name))
     }
 }
 
@@ -411,91 +434,122 @@ pub fn eject_device(path: String) -> Result<String, ConfigError> {
 // Device auto-reload via serial
 // ---------------------------------------------------------------------------
 
-/// USB Vendor IDs used by CircuitPython devices
-const CIRCUITPYTHON_VIDS: &[u16] = &[
-    0x239A, // Adafruit
-    0x2E8A, // Raspberry Pi
-];
+/// Adafruit USB Vendor ID — all MIDI Captain devices use Adafruit CircuitPython boards
+const ADAFRUIT_VID: u16 = 0x239A;
 
-/// Enumerate serial port candidates for CircuitPython devices.
-/// First tries USB ports matching known VIDs; falls back to platform name patterns.
-fn find_circuitpython_ports() -> Vec<String> {
-    let Ok(ports) = serialport::available_ports() else {
-        return Vec::new();
-    };
+/// Find a CircuitPython serial port by looking for Adafruit VID.
+/// On macOS each USB serial device appears as both `/dev/cu.*` and `/dev/tty.*`.
+/// We deduplicate by USB serial number and prefer `cu.*` (doesn't block on open).
+fn find_device_serial_port(_device_path: &Path) -> Result<String, ConfigError> {
+    let ports = serialport::available_ports().map_err(|e| ConfigError {
+        message: format!("Failed to enumerate serial ports: {}", e),
+        details: None,
+    })?;
 
-    let mut candidates: Vec<String> = ports
+    // Filter to Adafruit VID ports, preferring cu.* over tty.* on macOS
+    let mut adafruit_ports: Vec<_> = ports
         .iter()
-        .filter_map(|p| {
-            if let serialport::SerialPortType::UsbPort(info) = &p.port_type {
-                if CIRCUITPYTHON_VIDS.contains(&info.vid) {
-                    return Some(p.port_name.clone());
-                }
-            }
-            None
+        .filter(|p| {
+            matches!(
+                &p.port_type,
+                serialport::SerialPortType::UsbPort(info) if info.vid == ADAFRUIT_VID
+            )
         })
         .collect();
 
-    // Fallback: match by platform-specific port name patterns
-    if candidates.is_empty() {
-        candidates = ports
-            .iter()
-            .filter(|p| {
-                let name = &p.port_name;
-                name.contains("usbmodem")   // macOS
-                    || name.contains("ttyACM") // Linux
-                    || name.starts_with("COM") // Windows
-            })
-            .map(|p| p.port_name.clone())
-            .collect();
-    }
-
-    candidates
-}
-
-/// Send a reload signal (0x12 / Ctrl+R) to a CircuitPython device over USB serial.
-/// The firmware listens for this byte and calls supervisor.reload().
-/// Send a reload signal (0x12 / Ctrl+R) to a CircuitPython device over USB serial.
-/// The firmware listens for this byte and calls supervisor.reload().
-///
-/// Note: Currently enumerates all CircuitPython-like ports and sends to the first
-/// that opens successfully. In multi-device setups this may reload the wrong board.
-/// Future improvement: correlate device_path with USB serial port metadata (serial
-/// number, bus location) to target the specific device that was just saved.
-#[command]
-pub fn trigger_device_reload(device_path: String) -> Result<String, ConfigError> {
-    let _ = device_path; // TODO: use to scope port selection
-    let candidates = find_circuitpython_ports();
-
-    if candidates.is_empty() {
-        return Err(ConfigError {
-            message: "No CircuitPython serial port found. Please restart the device manually."
-                .to_string(),
-            details: None,
-        });
-    }
-
-    let mut last_error = String::new();
-    for port_name in &candidates {
-        match serialport::new(port_name, 115_200)
-            .timeout(std::time::Duration::from_millis(1000))
-            .open()
-        {
-            Ok(mut port) => match port.write_all(&[0x12]) {
-                Ok(_) => return Ok(format!("Reload signal sent on {}", port_name)),
-                Err(e) => last_error = e.to_string(),
-            },
-            Err(e) => last_error = e.to_string(),
+    // On macOS, cu.* and tty.* are the same physical device — deduplicate.
+    // Keep cu.* (call-up port, doesn't block waiting for carrier detect).
+    if adafruit_ports.len() > 1 {
+        let has_cu = adafruit_ports.iter().any(|p| p.port_name.contains("/cu."));
+        if has_cu {
+            adafruit_ports.retain(|p| p.port_name.contains("/cu."));
         }
     }
 
-    Err(ConfigError {
-        message: format!(
-            "Failed to send reload signal: {}. Please restart the device manually.",
-            last_error
-        ),
+    match adafruit_ports.len() {
+        0 => Err(ConfigError {
+            message: "No CircuitPython serial port found. Is the device connected?".to_string(),
+            details: None,
+        }),
+        1 => Ok(adafruit_ports[0].port_name.clone()),
+        _ => {
+            // Multiple distinct Adafruit devices.
+            // Future: correlate by USB serial number.
+            Err(ConfigError {
+                message: format!(
+                    "Found {} CircuitPython devices. Disconnect other devices and try again.",
+                    adafruit_ports.len()
+                ),
+                details: None,
+            })
+        }
+    }
+}
+
+/// Soft-reboot a CircuitPython device by sending Ctrl-C + Ctrl-D over serial.
+///
+/// Ctrl-C (0x03) interrupts the running program and drops to REPL.
+/// After 500ms delay for REPL initialization, Ctrl-D (0x04) triggers a soft reload
+/// that re-reads config.json and restarts code.py. The USB drive stays mounted
+/// throughout — no eject or power cycle needed.
+///
+/// Windows reliability improvements: Buffer draining and extended delays ensure
+/// reliable reboot on Windows systems.
+///
+/// Future improvement: correlate device_path with USB serial port metadata
+/// (serial number, bus location) to target the specific device that was just saved.
+#[command]
+pub fn trigger_device_reload(device_path: String) -> Result<String, ConfigError> {
+    validate_device_path(&device_path)?;
+
+    let path_obj = Path::new(&device_path);
+    verify_device_connected(path_obj)?;
+
+    let serial_port = find_device_serial_port(path_obj)?;
+
+    let mut port = serialport::new(&serial_port, 115200)
+        .timeout(Duration::from_secs(2))
+        .open()
+        .map_err(|e| ConfigError {
+            message: format!("Failed to open serial port {}: {}", serial_port, e),
+            details: None,
+        })?;
+
+    // Ctrl-C: interrupt running program, drop to REPL
+    // Send twice for Windows reliability
+    port.write_all(&[0x03, 0x03]).map_err(|e| ConfigError {
+        message: format!("Failed to send interrupt: {}", e),
         details: None,
-    })
+    })?;
+
+    port.flush().map_err(|e| ConfigError {
+        message: format!("Failed to flush after Ctrl-C: {}", e),
+        details: None,
+    })?;
+
+    // Wait for CircuitPython to stop the program and initialize the REPL
+    std::thread::sleep(Duration::from_millis(500));
+
+    // Drain any output from the interrupted program or REPL prompt
+    let mut drain_buf = [0u8; 256];
+    let _ = port.read(&mut drain_buf);
+
+    // Ctrl-D: soft reload — restarts code.py with new config
+    // Send twice for Windows reliability
+    port.write_all(&[0x04, 0x04]).map_err(|e| ConfigError {
+        message: format!("Failed to send reload: {}", e),
+        details: None,
+    })?;
+
+    port.flush().map_err(|e| ConfigError {
+        message: format!("Failed to flush serial port: {}", e),
+        details: None,
+    })?;
+
+    // Brief pause before closing so the bytes are fully transmitted
+    std::thread::sleep(Duration::from_millis(100));
+
+    Ok(format!("Device restarted via {}", serial_port))
 }
 
 // -----------------------------

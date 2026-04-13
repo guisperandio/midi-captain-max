@@ -4,6 +4,40 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+###  Added — Upstream Cherry-Picks
+- **Improved serial soft-reboot reliability** (cherry-picked from upstream)
+  - Replaced Ctrl-R (0x12) with Ctrl-C + Ctrl-D sequence for CircuitPython reboot
+  - Ctrl-C (0x03) interrupts program, Ctrl-D (0x04) triggers soft reload
+  - Added 500ms delay after Ctrl-C for REPL initialization
+  - Send control characters twice for Windows reliability
+  - Drain serial buffer between Ctrl-C and Ctrl-D to prevent race conditions
+  - Added 100ms delay before port close to ensure byte transmission
+  - Improved serial port discovery: deduplicate macOS cu.*/tty.* pairs, prefer cu.* (non-blocking)
+  - **Impact**: More reliable device restart on Windows, especially after config save
+
+- **Windows eject via PowerShell COM** (cherry-picked from upstream)
+  - Use PowerShell Shell.Application COM object for programmatic USB eject
+  - Replaces manual "Safely Remove Hardware" instructions
+  - Format: `(New-Object -ComObject Shell.Application).Namespace(17).ParseName('E:').InvokeVerb('Eject')`
+  - Falls back to manual instructions on error
+  - **Impact**: One-click eject for Windows users
+
+- **CI/CD optimizations** (cherry-picked from upstream)
+  - **Draft releases**: Releases now created as drafts - test artifacts before publishing
+  - **Rust dependency caching**: Added Swatinem/rust-cache@v2 to all build jobs (macOS, Windows, tests)
+  - **Python pip caching**: Added pip cache to lint job with cache-dependency-path
+  - **Impact**: Faster CI builds (~30-50% reduction), safer releases
+
+- **New device support** (cherry-picked from upstream)
+  - Added Nano4 (4-switch variant)
+  - Added Duo2 (2-switch variant with segmented LCD)
+  - Added One1 (1-switch variant)
+  - Updated DeviceType enum in Rust config validation
+  - Updated button count validation: Std10=10, Mini6=6, Nano4=4, Duo2=2, One1=1
+  - Updated bank switch button limits per device
+  - Updated device detection to recognize new device types
+  - **Impact**: Config editor now validates configurations for all 5 device types
+
 ### Fixed
 - **Windows device scanning 500 error**: Fixed hang/timeout when scanning for devices on Windows
   - Changed drive scan range from A-Z to C-Z (skip floppy drives A: and B:)

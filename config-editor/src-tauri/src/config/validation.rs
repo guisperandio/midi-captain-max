@@ -151,6 +151,9 @@ impl MidiCaptainConfig {
         let expected_buttons = match self.device {
             DeviceType::Std10 => 10,
             DeviceType::Mini6 => 6,
+            DeviceType::Nano4 => 4,
+            DeviceType::Duo2 => 2,
+            DeviceType::One1 => 1,
         };
 
         // Validate banks if present (multi-bank mode)
@@ -199,10 +202,13 @@ impl MidiCaptainConfig {
                 }
                 // Validate button numbers
                 // STD10 can use buttons 1-10 or 11 (encoder push) for bank switching
-                // Mini6 can use buttons 1-6 only (no encoder)
+                // Other devices: button count only (no encoder)
                 let max_bank_switch_button: u8 = match self.device {
-                    DeviceType::Std10 => 11,
+                    DeviceType::Std10 => 11,  // 10 buttons + encoder push
                     DeviceType::Mini6 => 6,
+                    DeviceType::Nano4 => 4,
+                    DeviceType::Duo2 => 2,
+                    DeviceType::One1 => 1,
                 };
                 if let Some(btn) = bs.button {
                     if btn < 1 || btn > max_bank_switch_button {
