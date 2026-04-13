@@ -272,6 +272,20 @@
         />
         <span class="field-hint" style="display: block; margin-top: 0.5rem;">When disabled, conditional labels (then/else) show for 3s then return to button label</span>
       </div>
+
+      <div class="field full" style="margin-top: 1.5rem;">
+        <label>Double Press Timeout (ms) <span class="field-hint">(default: 300)</span></label>
+        <input
+          type="number"
+          min="50"
+          max="1000"
+          step="50"
+          value={btn.double_press_timeout_ms ?? ''}
+          placeholder="300"
+          onblur={(e) => { const v = numVal(e); update('double_press_timeout_ms', v); }}
+        />
+        <span class="field-hint" style="display: block; margin-top: 0.5rem;">Maximum time between presses for double-press detection (50-1000ms)</span>
+      </div>
     </div>
 
     <!-- ── Behavior Section ──────────────────── -->
@@ -548,6 +562,14 @@
           commands={btn.long_release ?? []}
           globalChannel={globalCh}
           onUpdate={(cmds) => update('long_release', cmds.length > 0 ? cmds : undefined)}
+          buttonIndex={$selectedButtonIndex}
+        />
+
+        <ButtonCommandsEditor
+          eventLabel="Double Press"
+          commands={btn.double_press ?? []}
+          globalChannel={globalCh}
+          onUpdate={(cmds) => update('double_press', cmds.length > 0 ? cmds : undefined)}
           buttonIndex={$selectedButtonIndex}
         />
       {/if}
