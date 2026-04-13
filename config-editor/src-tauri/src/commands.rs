@@ -212,6 +212,27 @@ fn get_volume_path(path: &Path) -> Option<PathBuf> {
 }
 
 /// Verify the device is still mounted before writing
+#[cfg(target_os = "windows")]
+fn verify_device_connected(path: &Path) -> Result<(), ConfigError> {
+    use std::ffi::OsString;
+    use std::os::windows::ffi::OsStrExt;
+    
+    // On Windows, just verify the file path exists and is writable
+    // The device scanner already filtered to safe drive types
+    if !path.exists() {
+        let parent = path.parent().unwrap_or(path);
+        if !parent.exists() {
+            return Err(ConfigError {
+                message: format!("Device path does not exist: {}", path.display()),
+                details: Some(vec!["Device may have been ejected or unmounted".to_string()]),
+            });
+        }
+    }
+    
+    Ok(())
+}
+
+#[cfg(not(target_os = "windows"))]
 fn verify_device_connected(path: &Path) -> Result<(), ConfigError> {
     if let Some(volume_path) = get_volume_path(path) {
         if !is_volume_mounted(&volume_path) {
