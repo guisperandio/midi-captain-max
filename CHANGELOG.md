@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+- **Updated GitHub Actions to latest versions** (matching upstream)
+  - `actions/setup-node`: v4 → v6
+  - `actions/upload-artifact`: v6 → v7
+  - `actions/download-artifact`: v6 → v7
+  - Added `awalsh128/cache-apt-pkgs-action@latest` for Linux apt dependencies
+  - **Impact**: Better performance and compatibility with latest GitHub Actions features
+
 ###  Added — Upstream Cherry-Picks
 - **Improved serial soft-reboot reliability** (cherry-picked from upstream)
   - Replaced Ctrl-R (0x12) with Ctrl-C + Ctrl-D sequence for CircuitPython reboot
