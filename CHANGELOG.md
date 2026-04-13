@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-04-14
+
+### Added
+- **Comprehensive Logging System** (config-editor): Production debugging infrastructure
+  - Platform-specific log locations:
+    - macOS: `~/Library/Logs/midi-captain-max-config-editor/`
+    - Windows: `%APPDATA%\midi-captain-max-config-editor\logs\`
+    - Linux: `~/.local/share/midi-captain-max-config-editor/logs/`
+  - Daily rotation with tracing-appender (format: `app.log.YYYY-MM-DD`)
+  - Ring buffer for memory-efficient log reading (no full file load)
+  - Frontend API: `getLogPath()`, `getRecentLogs()`, `openLogDirectory()`
+  - Startup-error.txt fallback for Windows when logging initialization fails
+  - Comprehensive tracing for device scanning, config read/write, and eject operations
+  - **Impact**: Enables debugging of production issues without dev tools
+
 ### Changed
 - **Updated GitHub Actions to latest versions** (matching upstream)
   - `actions/setup-node`: v4 → v6
@@ -52,9 +67,19 @@ All notable changes to this project will be documented in this file.
   - Added `GetDriveTypeW` check to filter out problematic drive types before accessing
   - Only scan safe drives: DRIVE_FIXED (local), DRIVE_REMOVABLE (USB), DRIVE_RAMDISK
   - Skip CD-ROM drives (can hang if no media), network drives (can timeout), and unknown drives
+  - Added 500ms timeout to `GetVolumeInformationW` using background thread + mpsc channel
+  - Added 200ms timeout wrapper for `path.exists()` checks
+  - RecvTimeoutError discrimination (Timeout vs Disconnected) for better error messages
   - Added panic handlers in `check_volume()` to prevent crashes on I/O errors
   - Added "winerror" feature to winapi dependency for better error handling
-  - **Impact**: Eliminates 500 errors on startup caused by inaccessible drives
+  - **Impact**: Eliminates 500 errors and hangs on startup caused by inaccessible drives
+
+- **Device save verification**: Fixed device connectivity checks before writing config
+  - Improved path validation and error messages
+  - Better handling of ejected/unmounted devices
+  - CSP (Content Security Policy) re-enabled with secure directives
+  - Proper cfg gates for platform-specific code (removed #[allow(dead_code)])
+  - **Impact**: More reliable config saves and better error feedback
 
 ## [Conditional Actions] - 2026-03-23
 
