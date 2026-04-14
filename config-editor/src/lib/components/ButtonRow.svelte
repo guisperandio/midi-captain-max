@@ -72,12 +72,9 @@
     const target = e.target as HTMLSelectElement;
     const modeVal = target.value as ButtonMode;
     onUpdate('mode', modeVal);
-    // If user selects tap mode, map to led_mode and clear select_group
+    // If user selects tap mode, clear select_group
     if (modeVal === 'tap') {
-      onUpdate('led_mode', 'tap');
       onUpdate('select_group', undefined);
-    } else {
-      if (button.led_mode === 'tap') onUpdate('led_mode', undefined);
     }
   }
 
@@ -86,12 +83,7 @@
     onUpdate('off_mode', target.value as OffMode);
   }
 
-  // LED tap mode handlers
-  function handleLedModeChange(e: Event) {
-    const target = e.target as HTMLSelectElement;
-    const v = target.value === '' ? undefined : target.value;
-    onUpdate('led_mode', v);
-  }
+  // LED tap mode handlers removed - led_mode field no longer exists
 
   // Long-press handlers
   function handleLongPressTypeChange(e: Event) {
@@ -466,15 +458,6 @@
   </div>
 
   <!-- Tap tempo is derived at runtime from user taps; no manual tap-rate input -->
-
-  <div class="field">
-    <label class="field-label">LED Mode:</label>
-    <select class="select" value={button.led_mode ?? ''} onchange={handleLedModeChange} disabled={disabled || button.mode === 'tap'}>
-      <option value="">Normal</option>
-      <option value="tap">Tap (always active)</option>
-    </select>
-  </div>
-
   <!-- No manual tap-rate control shown; tempo is set by tapping the switch -->
 
   <details class="long-section" open>

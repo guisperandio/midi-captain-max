@@ -23,7 +23,7 @@ export async function getRecentLogs(lines?: number): Promise<string[]> {
  * Open the log directory in the system file manager
  */
 export async function openLogDirectory(): Promise<void> {
-  const { open } = await import('@tauri-apps/plugin-opener');
+  const { openPath } = await import('@tauri-apps/plugin-opener');
   const logPath = await getLogPath();
-  await open(logPath);
+  await openPath(logPath);
 }

@@ -3,9 +3,11 @@
 //! Basic type definitions for configuration validation.
 
 use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 
 /// Valid button colors
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, TS)]
+#[ts(export)]
 #[serde(rename_all = "lowercase")]
 pub enum ButtonColor {
     Red,
@@ -26,7 +28,8 @@ pub enum ButtonColor {
 }
 
 /// Button trigger mode
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default, TS)]
+#[ts(export)]
 #[serde(rename_all = "lowercase")]
 pub enum ButtonMode {
     #[default]
@@ -38,7 +41,8 @@ pub enum ButtonMode {
 }
 
 /// LED behavior when button is off
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default, TS)]
+#[ts(export)]
 #[serde(rename_all = "lowercase")]
 pub enum OffMode {
     #[default]
@@ -47,7 +51,8 @@ pub enum OffMode {
 }
 
 /// Message type for a button
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default, TS)]
+#[ts(export)]
 #[serde(rename_all = "snake_case")]
 pub enum MessageType {
     #[default]
@@ -59,7 +64,8 @@ pub enum MessageType {
 }
 
 /// Expression pedal polarity
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default, TS)]
+#[ts(export)]
 #[serde(rename_all = "lowercase")]
 pub enum Polarity {
     #[default]
@@ -68,7 +74,8 @@ pub enum Polarity {
 }
 
 /// Device type
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default, TS)]
+#[ts(export)]
 #[serde(rename_all = "lowercase")]
 pub enum DeviceType {
     #[default]
@@ -80,7 +87,8 @@ pub enum DeviceType {
 }
 
 /// Bank switching method
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default, TS)]
+#[ts(export)]
 #[serde(rename_all = "lowercase")]
 pub enum BankSwitchMethod {
     #[default]
@@ -90,7 +98,8 @@ pub enum BankSwitchMethod {
 }
 
 /// Condition operator for comparisons
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, TS)]
+#[ts(export)]
 pub enum ConditionOperator {
     #[serde(rename = "==")]
     Equals,
@@ -107,7 +116,8 @@ pub enum ConditionOperator {
 }
 
 /// Type of condition to evaluate
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, TS)]
+#[ts(export)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Condition {
     /// Check if a button is ON or OFF
@@ -141,7 +151,8 @@ pub enum Condition {
 }
 
 /// Button state for conditional checks
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, TS)]
+#[ts(export)]
 #[serde(rename_all = "lowercase")]
 pub enum ButtonState {
     On,

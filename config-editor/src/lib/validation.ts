@@ -111,51 +111,51 @@ function validateButtons(
     const msgType = btn.type ?? 'cc';
 
     if (msgType === 'cc') {
-      if (btn.cc !== undefined) {
+      if (btn.cc != null) {
         const ccError = validators.cc(btn.cc);
         if (ccError) errors.set(`${btnPath}.cc`, ccError);
       }
     } else if (msgType === 'note') {
-      if (btn.note !== undefined) {
+      if (btn.note != null) {
         const noteError = validators.note(btn.note);
         if (noteError) errors.set(`${btnPath}.note`, noteError);
       }
-      if (btn.velocity_on !== undefined) {
+      if (btn.velocity_on != null) {
         const velError = validators.velocity(btn.velocity_on);
         if (velError) errors.set(`${btnPath}.velocity_on`, velError);
       }
-      if (btn.velocity_off !== undefined) {
+      if (btn.velocity_off != null) {
         const velError = validators.velocity(btn.velocity_off);
         if (velError) errors.set(`${btnPath}.velocity_off`, velError);
       }
     } else if (msgType === 'pc') {
-      if (btn.program !== undefined) {
+      if (btn.program != null) {
         const progError = validators.program(btn.program);
         if (progError) errors.set(`${btnPath}.program`, progError);
       }
     } else if (msgType === 'pc_inc' || msgType === 'pc_dec') {
-      if (btn.pc_step !== undefined) {
+      if (btn.pc_step != null) {
         const stepError = validators.pcStep(btn.pc_step);
         if (stepError) errors.set(`${btnPath}.pc_step`, stepError);
       }
     }
 
-    if (btn.channel !== undefined) {
+    if (btn.channel != null) {
       const chError = validators.channel(btn.channel);
       if (chError) errors.set(`${btnPath}.channel`, chError);
     }
 
-    if (btn.flash_ms !== undefined) {
+    if (btn.flash_ms != null) {
       const fError = validators.flashMs(btn.flash_ms);
       if (fError) errors.set(`${btnPath}.flash_ms`, fError);
     }
 
     // LED tap mode validation
-    if (btn.led_mode !== undefined) {
+    if (btn.led_mode != null) {
       if (btn.led_mode !== 'tap') {
         errors.set(`${btnPath}.led_mode`, 'led_mode must be "tap" if set');
       }
-      if (btn.tap_rate_ms !== undefined) {
+      if (btn.tap_rate_ms != null) {
         const tError = validators.flashMs(btn.tap_rate_ms);
         if (tError) errors.set(`${btnPath}.tap_rate_ms`, tError);
       }
@@ -197,43 +197,43 @@ function validateButtons(
       }
       
       if (aType === 'cc') {
-        if (action.cc !== undefined) {
+        if (action.cc != null) {
           const e = validators.cc(action.cc);
           if (e) errors.set(`${pathBase}.cc`, e);
         }
-        if (action.value !== undefined) {
+        if (action.value != null) {
           const e = validators.withinRange(action.value, 0, 127);
           if (e) errors.set(`${pathBase}.value`, e);
         }
       } else if (aType === 'note') {
-        if (action.note !== undefined) {
+        if (action.note != null) {
           const e = validators.note(action.note);
           if (e) errors.set(`${pathBase}.note`, e);
         }
-        if (action.velocity !== undefined) {
+        if (action.velocity != null) {
           const e = validators.velocity(action.velocity);
           if (e) errors.set(`${pathBase}.velocity`, e);
         }
-        if (action.value !== undefined) {
+        if (action.value != null) {
           const e = validators.velocity(action.value);
           if (e) errors.set(`${pathBase}.value`, e);
         }
       } else if (aType === 'pc') {
-        if (action.program !== undefined) {
+        if (action.program != null) {
           const e = validators.program(action.program);
           if (e) errors.set(`${pathBase}.program`, e);
         }
       } else if (aType === 'pc_inc' || aType === 'pc_dec') {
-        if (action.pc_step !== undefined) {
+        if (action.pc_step != null) {
           const e = validators.pcStep(action.pc_step);
           if (e) errors.set(`${pathBase}.pc_step`, e);
         }
       }
-      if (action.channel !== undefined) {
+      if (action.channel != null) {
         const ch = validators.channel(action.channel);
         if (ch) errors.set(`${pathBase}.channel`, ch);
       }
-      if (action.threshold_ms !== undefined) {
+      if (action.threshold_ms != null) {
         if (!Number.isInteger(action.threshold_ms) || action.threshold_ms < 50 || action.threshold_ms > 10000) {
           errors.set(`${pathBase}.threshold_ms`, 'threshold_ms must be integer 50-10000');
         }
@@ -247,7 +247,7 @@ function validateButtons(
         actions.forEach((action, idx) => {
           validateAction(action, `${pathBase}[${idx}]`);
           // threshold_ms only valid on first command
-          if (idx > 0 && action.threshold_ms !== undefined) {
+          if (idx > 0 && action.threshold_ms != null) {
             errors.set(`${pathBase}[${idx}].threshold_ms`, 'threshold_ms only allowed on first command');
           }
         });
@@ -257,11 +257,14 @@ function validateButtons(
       }
     };
 
+    // Validate all action arrays (press, release, long_press, long_release)
+    validateActionArray(btn.press, `${btnPath}.press`);
+    validateActionArray(btn.release, `${btnPath}.release`);
     validateActionArray(btn.long_press, `${btnPath}.long_press`);
     validateActionArray(btn.long_release, `${btnPath}.long_release`);
 
     // select_group validation
-    if (btn.select_group !== undefined) {
+    if (btn.select_group != null) {
       if (typeof btn.select_group !== 'string' || btn.select_group.trim() === '') {
         errors.set(`${btnPath}.select_group`, 'select_group must be a non-empty string');
       } else {
@@ -276,54 +279,54 @@ function validateButtons(
         }
       }
     }
-    if (btn.default_selected !== undefined && typeof btn.default_selected !== 'boolean') {
+    if (btn.default_selected != null && typeof btn.default_selected !== 'boolean') {
       errors.set(`${btnPath}.default_selected`, 'default_selected must be boolean');
     }
 
-    if (btn.states && (btn.keytimes === undefined || btn.keytimes <= 1)) {
+    if (btn.states && (btn.keytimes == null || btn.keytimes <= 1)) {
       errors.set(`${btnPath}.states`, 'states requires keytimes > 1');
     }
 
-    if (btn.keytimes !== undefined) {
+    if (btn.keytimes != null) {
       const ktError = validators.keytimes(btn.keytimes);
       if (ktError) errors.set(`${btnPath}.keytimes`, ktError);
 
       if (btn.states) {
         btn.states.forEach((state: any, si: number) => {
           const sp = `${btnPath}.states[${si}]`;
-          if (state.cc !== undefined) {
+          if (state.cc != null) {
             const e = validators.cc(state.cc);
             if (e) errors.set(`${sp}.cc`, e);
           }
-          if (state.cc_on !== undefined) {
+          if (state.cc_on != null) {
             const e = validators.withinRange(state.cc_on, 0, 127);
             if (e) errors.set(`${sp}.cc_on`, e);
           }
-          if (state.cc_off !== undefined) {
+          if (state.cc_off != null) {
             const e = validators.withinRange(state.cc_off, 0, 127);
             if (e) errors.set(`${sp}.cc_off`, e);
           }
-          if (state.note !== undefined) {
+          if (state.note != null) {
             const e = validators.note(state.note);
             if (e) errors.set(`${sp}.note`, e);
           }
-          if (state.velocity_on !== undefined) {
+          if (state.velocity_on != null) {
             const e = validators.velocity(state.velocity_on);
             if (e) errors.set(`${sp}.velocity_on`, e);
           }
-          if (state.velocity_off !== undefined) {
+          if (state.velocity_off != null) {
             const e = validators.velocity(state.velocity_off);
             if (e) errors.set(`${sp}.velocity_off`, e);
           }
-          if (state.program !== undefined) {
+          if (state.program != null) {
             const e = validators.program(state.program);
             if (e) errors.set(`${sp}.program`, e);
           }
-          if (state.pc_step !== undefined) {
+          if (state.pc_step != null) {
             const e = validators.pcStep(state.pc_step);
             if (e) errors.set(`${sp}.pc_step`, e);
           }
-          if (state.label !== undefined) {
+          if (state.label != null) {
             const e = validators.label(state.label);
             if (e) errors.set(`${sp}.label`, e);
           }
@@ -389,15 +392,15 @@ export function validateConfig(config: MidiCaptainConfig): ValidationResult {
     // Validate bank_switch config if present
     if (config.bank_switch) {
       const bs = config.bank_switch;
-      if (bs.channel !== undefined) {
+      if (bs.channel != null) {
         const chErr = validators.channel(bs.channel);
         if (chErr) errors.set('bank_switch.channel', chErr);
       }
-      if (bs.cc !== undefined) {
+      if (bs.cc != null) {
         const ccErr = validators.cc(bs.cc);
         if (ccErr) errors.set('bank_switch.cc', ccErr);
       }
-      if (bs.pc_base !== undefined) {
+      if (bs.pc_base != null) {
         const pcErr = validators.cc(bs.pc_base); // PC numbers use same range as CC
         if (pcErr) errors.set('bank_switch.pc_base', pcErr);
       }
@@ -405,17 +408,17 @@ export function validateConfig(config: MidiCaptainConfig): ValidationResult {
       // STD10 can use buttons 1-10 or 11 (encoder push) for bank switching
       // Mini6 can use buttons 1-6 only (no encoder)
       const maxBankSwitchButton = config.device === 'mini6' ? 6 : 11;
-      if (bs.button !== undefined) {
+      if (bs.button != null) {
         if (bs.button < 1 || bs.button > maxBankSwitchButton) {
           errors.set('bank_switch.button', `Button must be between 1 and ${maxBankSwitchButton}`);
         }
       }
-      if (bs.button_next !== undefined) {
+      if (bs.button_next != null) {
         if (bs.button_next < 1 || bs.button_next > maxBankSwitchButton) {
           errors.set('bank_switch.button_next', `Button must be between 1 and ${maxBankSwitchButton}`);
         }
       }
-      if (bs.button_prev !== undefined) {
+      if (bs.button_prev != null) {
         if (bs.button_prev < 1 || bs.button_prev > maxBankSwitchButton) {
           errors.set('bank_switch.button_prev', `Button must be between 1 and ${maxBankSwitchButton}`);
         }
@@ -423,7 +426,7 @@ export function validateConfig(config: MidiCaptainConfig): ValidationResult {
     }
 
     // Validate active_bank index
-    if (config.active_bank !== undefined) {
+    if (config.active_bank != null) {
       if (config.active_bank < 0 || config.active_bank >= config.banks.length) {
         errors.set('active_bank', `active_bank ${config.active_bank} out of range (max ${config.banks.length - 1})`);
       }
@@ -448,7 +451,7 @@ export function validateConfig(config: MidiCaptainConfig): ValidationResult {
     const ccError = validators.cc(config.encoder.cc);
     if (ccError) errors.set('encoder.cc', ccError);
 
-    if (config.encoder.channel !== undefined) {
+    if (config.encoder.channel != null) {
       const chError = validators.channel(config.encoder.channel);
       if (chError) errors.set('encoder.channel', chError);
     }
@@ -458,7 +461,7 @@ export function validateConfig(config: MidiCaptainConfig): ValidationResult {
     const rangeError = validators.range(min, max);
     if (rangeError) errors.set('encoder.range', rangeError);
 
-    if (config.encoder.initial !== undefined) {
+    if (config.encoder.initial != null) {
       const initError = validators.withinRange(config.encoder.initial, min, max);
       if (initError) errors.set('encoder.initial', `Initial ${initError.toLowerCase()}`);
     }
@@ -467,15 +470,15 @@ export function validateConfig(config: MidiCaptainConfig): ValidationResult {
       const pushCcError = validators.cc(config.encoder.push.cc);
       if (pushCcError) errors.set('encoder.push.cc', pushCcError);
 
-      if (config.encoder.push.channel !== undefined) {
+      if (config.encoder.push.channel != null) {
         const chError = validators.channel(config.encoder.push.channel);
         if (chError) errors.set('encoder.push.channel', chError);
       }
-      if (config.encoder.push.cc_on !== undefined) {
+      if (config.encoder.push.cc_on != null) {
         const e = validators.cc(config.encoder.push.cc_on);
         if (e) errors.set('encoder.push.cc_on', e);
       }
-      if (config.encoder.push.cc_off !== undefined) {
+      if (config.encoder.push.cc_off != null) {
         const e = validators.cc(config.encoder.push.cc_off);
         if (e) errors.set('encoder.push.cc_off', e);
       }
@@ -490,7 +493,7 @@ export function validateConfig(config: MidiCaptainConfig): ValidationResult {
     const ccError = validators.cc(exp.cc);
     if (ccError) errors.set(`${p}.cc`, ccError);
 
-    if (exp.channel !== undefined) {
+    if (exp.channel != null) {
       const chError = validators.channel(exp.channel);
       if (chError) errors.set(`${p}.channel`, chError);
     }

@@ -144,7 +144,7 @@
 				} else if (key === 'release' && hasLegacyFields) {
 					// Only show release for toggle/select/normal modes, not for PC types or momentary
 					const mode = btnConfig.mode ?? 'toggle';
-					const type = btnConfig.type ?? 'cc';
+							const type = btnConfig.type ?? 'cc';
 					const showRelease = (mode === 'toggle' || mode === 'select' || mode === 'normal') && 
 					                   (type === 'cc' || type === 'note');
 					if (showRelease) {
