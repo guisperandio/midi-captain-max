@@ -1,6 +1,12 @@
 # CircuitPython library dependencies
+# Compatible with CircuitPython 7.x, 8.x, and 9.x
 # Install with circup: circup install -r requirements-circuitpython.txt
 # Or download from: https://circuitpython.org/libraries
+#
+# Note: Library bundle version must match your CircuitPython major version
+# - CP 7.x: use bundle 7.x (adafruit-circuitpython-bundle-7.x-mpy-YYYYMMDD.zip)
+# - CP 8.x: use bundle 8.x (adafruit-circuitpython-bundle-8.x-mpy-YYYYMMDD.zip)
+# - CP 9.x: use bundle 9.x (adafruit-circuitpython-bundle-9.x-mpy-YYYYMMDD.zip)
 
 adafruit_midi
 adafruit_display_text

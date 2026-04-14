@@ -57,7 +57,8 @@ from core.constants import (
     LED_GLOBAL_BRIGHTNESS, LED_DEFAULT_OFF_MODE, LED_DEFAULT_DIM_BRIGHTNESS,
     DEFAULT_MIDI_CHANNEL, MIDI_CHANNEL_COUNT, MIDI_VALUE_CENTER,
     USB_MIDI_BUFFER_SIZE,
-    LABEL_RETURN_TIMEOUT_SEC, DEFAULT_LONG_PRESS_MS, PC_FLASH_DURATION_MS,
+    LABEL_RETURN_TIMEOUT_SEC, DEFAULT_LONG_PRESS_MS, DEFAULT_DOUBLE_PRESS_TIMEOUT_MS,
+    PC_FLASH_DURATION_MS,
     TAP_HISTORY_SIZE, TAP_MIN_INTERVAL_MS, TAP_MAX_INTERVAL_MS,
     TAP_DEFAULT_RATE_MS, TAP_ACTIVE_WINDOW_MULTIPLIER,
     VBAT_FILTER_ALPHA, PC_VALUES_SIZE,
@@ -447,6 +448,10 @@ display = ST7789(
     rotation=DISPLAY_ROTATION,
 )
 
+# Allow display controller to stabilize before sending commands
+# Without this delay, the display may show noise from uninitialized RAM
+time.sleep(0.05)  # 50ms delay
+
 # Show blank black screen immediately to avoid displaying uninitialized RAM noise
 blank_group = displayio.Group()
 blank_bitmap = displayio.Bitmap(DISPLAY_WIDTH, DISPLAY_HEIGHT, 1)
@@ -513,6 +518,7 @@ else:
 
 # Will be set after config is loaded
 encoder_value = 0
+encoder_slot = None  # Current display slot for encoder (None = not shown)
 encoder_push_state = False  # For toggle mode
 
 # Expression pedals (STD10 only)
@@ -658,19 +664,18 @@ state_at_press = [None] * BUTTON_COUNT
 # Default threshold (ms) if not provided per-button; can be overridden in config
 LONG_PRESS_THRESHOLD_MS = config.get("long_press_threshold_ms", DEFAULT_LONG_PRESS_MS)
 
-pc_values = [0] * MIDI_CHANNEL_COUNT  # Current PC value per MIDI channel, shared across all pc_inc/pc_dec buttons
-pc_flash_timers = [0.0] * BUTTON_COUNT  # Expiry time (monotonic) for PC button flash; 0 = inactive
+# Double-press support state
+# Per-button: time when button was last released (monotonic), 0 if never released
+last_release_times = [0.0] * BUTTON_COUNT
+# Per-button: flag indicating if a double-press was detected on the current press/release cycle
+double_press_consumed = [False] * BUTTON_COUNT
+# Default double-press timeout (ms) if not provided in config
+DOUBLE_PRESS_TIMEOUT_MS = config.get("double_press_timeout_ms", DEFAULT_DOUBLE_PRESS_TIMEOUT_MS)
 
-# Track received CC values for conditional actions: received_cc_values[channel][cc] = value
-# Initialize with empty dicts for each channel
-received_cc_values = {}
-for ch in range(MIDI_CHANNEL_COUNT):
-    received_cc_values[ch] = {}
+# PC button flash timers
+# Per-button: expiry time for PC flash (monotonic), 0 if not flashing
+pc_flash_timers = [0.0] * BUTTON_COUNT
 
-encoder_value = ENC_INITIAL  # Internal value 0-127
-encoder_slot = -1  # Current slot (set on first change)
-
-# Blink/tap mode state (per-button)
 blink_state = [False] * BUTTON_COUNT        # Current visual blink state (True=show ON color, False=show OFF color)
 blink_next_toggle = [0.0] * BUTTON_COUNT    # Next monotonic time to toggle blink state
 blink_rate_ms = [config.get("tap_rate_ms", 500)] * BUTTON_COUNT
@@ -694,6 +699,14 @@ tap_timestamps = [[] for _ in range(BUTTON_COUNT)]
 # Per-button tap active expiry (monotonic seconds). While now < tap_active_until[i]
 # the button will visually blink.
 tap_active_until = [0.0] * BUTTON_COUNT
+
+# MIDI state tracking for conditional actions
+# Dict[channel][cc_number] = value
+received_cc_values = {}
+
+# Program Change tracking: current PC value per MIDI channel (0-127)
+# Used by pc_inc/pc_dec buttons to track their position
+pc_values = [0] * PC_VALUES_SIZE
 
 # Performance optimization: batch LED updates
 # Set led_dirty = True whenever LEDs change, then call pixels.show() once at end of loop
@@ -1052,6 +1065,8 @@ def _send_tap_midi_fast(action_cfg, btn_num, idx):
 
     Every microsecond counts for tempo accuracy.
     """
+    global pc_values
+    
     if not action_cfg:
         return
 
@@ -1145,6 +1160,8 @@ def _send_action_from_cfg(action_cfg, btn_num, idx, action_name=None, skip_label
 
     Command types: cc, note, pc, pc_inc, pc_dec
     """
+    global pc_values
+    
     if not action_cfg:
         return
 
@@ -1600,6 +1617,8 @@ def _process_incoming_midi(msg):
     For ControlChange messages, matches CC number, channel, AND value for
     value-based scene switching (e.g., Quad Cortex: CC43=0, CC43=2, CC43=4 for scenes).
     """
+    global pc_values
+    
     if not msg:
         return
 
@@ -1812,6 +1831,25 @@ def handle_switches():
                         'keytimes': [button_states[si].current_keytime for si in range(len(button_states))],
                     }
 
+                # Check for double-press
+                double_press_cfg = btn_config.get("double_press")
+                if double_press_cfg:
+                    # Get timeout for this button (button-level override or global default)
+                    timeout_ms = btn_config.get("double_press_timeout_ms", DOUBLE_PRESS_TIMEOUT_MS)
+                    timeout_sec = timeout_ms / 1000.0
+                    last_release = last_release_times[idx]
+                    
+                    if last_release > 0 and (now - last_release) <= timeout_sec:
+                        # Double-press detected!
+                        print(f"[DOUBLE-PRESS] Button {btn_num} double-pressed (interval: {(now - last_release)*1000:.0f}ms)")
+                        _send_action_from_cfg(double_press_cfg, btn_num, idx, "double_press")
+                        short_action_executed[idx] = True
+                        # Mark as consumed so the release doesn't record a timestamp
+                        double_press_consumed[idx] = True
+                        last_release_times[idx] = 0.0
+                        # Skip normal press handling - double-press takes priority
+                        continue
+
                 # Check for bank switching button
                 if bank_manager and bank_switch_config and len(banks) > 0:
                     method = bank_switch_config.get("method", "button")
@@ -1925,6 +1963,15 @@ def handle_switches():
                 press_start_times[idx] = 0.0
                 was_long = long_press_triggered[idx]
                 long_press_triggered[idx] = False
+                
+                # Record release time for double-press detection unless this
+                # press/release cycle already consumed a double-press. In that
+                # case, leave the timestamp cleared so a rapid third press does
+                # not chain into another immediate double-press detection.
+                if double_press_consumed[idx]:
+                    double_press_consumed[idx] = False
+                else:
+                    last_release_times[idx] = now
 
                 if was_long:
                     # Long-press completed: dispatch long_release if configured
