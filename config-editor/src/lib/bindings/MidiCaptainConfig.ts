@@ -11,44 +11,44 @@ import type { SplashScreenConfig } from "./SplashScreenConfig";
 /**
  * Complete MIDI Captain configuration
  */
-export type MidiCaptainConfig = { device: DeviceType, global_channel: number | null, 
+export type MidiCaptainConfig = { device: DeviceType, global_channel?: number, 
 /**
  * Custom USB volume label (max 11 chars, alphanumeric + underscore).
  * Applied by boot.py via storage.remount() when the drive is enabled.
  */
-usb_drive_name: string | null, 
+usb_drive_name?: string, 
 /**
  * Development mode: when true the USB drive always mounts on boot without
  * needing to hold Switch 1.  Defaults to false (performance mode).
  */
-dev_mode: boolean | null, 
+dev_mode?: boolean, 
 /**
  * MIDI output transport: "usb" (default), "trs", or "both".
  * "usb"  — USB MIDI only (adafruit_midi over usb_midi.ports)
  * "trs"  — TRS/serial MIDI only (UART on GP16/GP17 at 31250 baud)
  * "both" — send to USB and TRS simultaneously
  */
-midi_transport: string | null, 
+midi_transport?: string, 
 /**
  * Array of banks (max 8 recommended for Flash storage)
  */
-banks: Array<BankConfig> | null, 
+banks?: Array<BankConfig>, 
 /**
  * Bank switching configuration (method, button/CC/PC, channel)
  */
-bank_switch: BankSwitchConfig | null, 
+bank_switch?: BankSwitchConfig, 
 /**
  * Active bank on boot (0-indexed, default: 0)
  */
-active_bank: number | null, 
+active_bank?: number, 
 /**
  * Legacy: single bank of buttons (auto-wrapped in banks[0] on load if banks not present)
  */
-buttons: Array<ButtonConfig> | null, encoder: EncoderConfig | null, expression: ExpressionPedals | null, display: DisplayConfig | null, splash_screen: SplashScreenConfig | null, long_press_threshold_ms: number | null, double_press_timeout_ms: number | null, 
+buttons?: Array<ButtonConfig>, encoder?: EncoderConfig, expression?: ExpressionPedals, display?: DisplayConfig, splash_screen?: SplashScreenConfig, long_press_threshold_ms?: number, double_press_timeout_ms?: number, 
 /**
  * Channel labels: optional mapping of channel numbers (as strings "0"-"15") to device names
  * Example: { "0": "Quad Cortex", "1": "Timespace Delay" }
  * Used in UI to show "Quad Cortex (Ch1)" instead of "Channel 1"
  * Uses BTreeMap instead of HashMap to ensure stable, sorted JSON output
  */
-channel_labels: { [key in string]?: string } | null, };
+channel_labels?: { [key in string]?: string }, };

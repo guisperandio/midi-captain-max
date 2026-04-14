@@ -3,4 +3,4 @@
 /**
  * Splash screen configuration
  */
-export type SplashScreenConfig = { enabled: boolean | null, duration_ms: number | null, idle_timeout_seconds: number | null, };
+export type SplashScreenConfig = { enabled?: boolean, duration_ms?: number, idle_timeout_seconds?: number, };

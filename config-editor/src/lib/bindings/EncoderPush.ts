@@ -4,4 +4,4 @@ import type { ButtonMode } from "./ButtonMode";
 /**
  * Encoder push button configuration
  */
-export type EncoderPush = { enabled: boolean, cc: number, label: string, mode: ButtonMode, channel: number | null, cc_on: number | null, cc_off: number | null, };
+export type EncoderPush = { enabled: boolean, cc: number, label: string, mode: ButtonMode, channel?: number, cc_on?: number, cc_off?: number, };

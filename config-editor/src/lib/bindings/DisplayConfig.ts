@@ -3,4 +3,4 @@
 /**
  * Display text size settings
  */
-export type DisplayConfig = { button_text_size: string | null, status_text_size: string | null, expression_text_size: string | null, button_name_text_size: string | null, };
+export type DisplayConfig = { button_text_size?: string, status_text_size?: string, expression_text_size?: string, button_name_text_size?: string, };

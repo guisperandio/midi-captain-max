@@ -5,4 +5,4 @@ import type { CommandOrConditional } from "./CommandOrConditional";
 /**
  * Per-state overrides for keytimes cycling
  */
-export type StateOverride = { press: Array<CommandOrConditional> | null, release: Array<CommandOrConditional> | null, long_press: Array<CommandOrConditional> | null, long_release: Array<CommandOrConditional> | null, cc: number | null, cc_on: number | null, cc_off: number | null, note: number | null, velocity_on: number | null, velocity_off: number | null, program: number | null, pc_step: number | null, color: ButtonColor | null, label: string | null, };
+export type StateOverride = { press: Array<CommandOrConditional> | null, release: Array<CommandOrConditional> | null, long_press: Array<CommandOrConditional> | null, long_release: Array<CommandOrConditional> | null, cc?: number, cc_on?: number, cc_off?: number, note?: number, velocity_on?: number, velocity_off?: number, program?: number, pc_step?: number, color?: ButtonColor, label?: string, };

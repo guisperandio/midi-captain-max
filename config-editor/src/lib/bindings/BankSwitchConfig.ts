@@ -8,12 +8,12 @@ export type BankSwitchConfig = { method: BankSwitchMethod,
 /**
  * [Legacy] Single button cycles through banks
  */
-button: number | null, 
+button?: number, 
 /**
  * Button for next bank (bank up) - takes precedence over 'button'
  */
-button_next: number | null, 
+button_next?: number, 
 /**
  * Button for previous bank (bank down)
  */
-button_prev: number | null, cc: number | null, pc_base: number | null, channel: number | null, };
+button_prev?: number, cc?: number, pc_base?: number, channel?: number, };

@@ -4,4 +4,4 @@ import type { Polarity } from "./Polarity";
 /**
  * Expression pedal configuration
  */
-export type ExpressionConfig = { enabled: boolean, cc: number, label: string, min: number, max: number, polarity: Polarity, threshold: number, channel: number | null, };
+export type ExpressionConfig = { enabled: boolean, cc: number, label: string, min: number, max: number, polarity: Polarity, threshold: number, channel?: number, };

@@ -9,23 +9,23 @@ import type { StateOverride } from "./StateOverride";
 /**
  * Button configuration
  */
-export type ButtonConfig = { label: string, long_press_label: string | null, long_press_color: ButtonColor | null, 
+export type ButtonConfig = { label: string, long_press_label?: string, long_press_color?: ButtonColor, 
 /**
  * Whether to keep long_press_label visible indefinitely (default: true)
  * When false, label shows for 3s then returns to selected button
  */
-long_press_label_persist: boolean | null, 
+long_press_label_persist?: boolean, 
 /**
  * Whether to keep conditional labels (then_label/else_label) visible (default: false)
  * When false, label shows for 3s then returns to selected button
  */
-conditional_label_persist: boolean | null, color: ButtonColor, 
+conditional_label_persist?: boolean, color: ButtonColor, 
 /**
  * Device profile ID (e.g., 'quad-cortex', 'helix')
  * When set with action_id, editor resolves to MIDI before saving
  */
-profile_id: string | null, 
+profile_id?: string, 
 /**
  * Action within profile (e.g., 'scene_b', 'snapshot_3')
  */
-action_id: string | null, press: Array<CommandOrConditional> | null, release: Array<CommandOrConditional> | null, long_press: Array<CommandOrConditional> | null, long_release: Array<CommandOrConditional> | null, double_press: Array<CommandOrConditional> | null, double_press_timeout_ms: number | null, message_type: MessageType, mode: ButtonMode, off_mode: OffMode, dim_brightness: number | null, channel: number | null, cc: number | null, cc_on: number | null, cc_off: number | null, note: number | null, velocity_on: number | null, velocity_off: number | null, program: number | null, pc_step: number | null, flash_ms: number | null, value_on: number | null, value_off: number | null, default_on: boolean | null, keytimes: number | null, states: Array<StateOverride> | null, select_group: string | null, default_selected: boolean | null, };
+action_id?: string, press: Array<CommandOrConditional> | null, release: Array<CommandOrConditional> | null, long_press: Array<CommandOrConditional> | null, long_release: Array<CommandOrConditional> | null, double_press: Array<CommandOrConditional> | null, double_press_timeout_ms?: number, message_type: MessageType, mode: ButtonMode, off_mode: OffMode, dim_brightness?: number, channel?: number, cc?: number, cc_on?: number, cc_off?: number, note?: number, velocity_on?: number, velocity_off?: number, program?: number, pc_step?: number, flash_ms?: number, value_on?: number, value_off?: number, default_on?: boolean, keytimes?: number, states?: Array<StateOverride>, select_group?: string, default_selected?: boolean, };
