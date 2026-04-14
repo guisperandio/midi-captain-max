@@ -133,6 +133,23 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: config-editor/src-tauri
+
+      - name: Generate TypeScript bindings
+        working-directory: config-editor/src-tauri
+        run: cargo test --lib
+
+      - name: Copy bindings to frontend
+        run: |
+          mkdir -p config-editor/src/lib/bindings
+          cp config-editor/src-tauri/bindings/*.ts config-editor/src/lib/bindings/
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:

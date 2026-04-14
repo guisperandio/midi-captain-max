@@ -6,7 +6,7 @@ export default defineConfig({
 	test: {
 		include: ['src/**/*.{test,spec}.{js,ts}'],
 		environment: 'happy-dom',
-		globals: true,
+		globals: false,  // Require explicit imports to avoid test pollution
 		setupFiles: ['./vitest.setup.ts'],
 		coverage: {
 			reporter: ['text', 'json', 'html'],
@@ -18,6 +18,8 @@ export default defineConfig({
 				'**/*.test.*',
 				'**/*.spec.*'
 			]
+			// Note: Global thresholds removed - will add per-file thresholds as modules gain test coverage
+			// Current coverage: validation.ts (~47%), formStore.ts (~35%)
 		}
 	}
 });

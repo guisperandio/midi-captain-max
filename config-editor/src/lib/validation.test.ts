@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { validators, validateConfig } from './validation';
-import type { MidiCaptainConfig, ButtonConfig } from './types';
+import { createMidiCaptainConfig, createButtonConfig } from './testUtils';
 
 describe('validators', () => {
 	describe('label', () => {
@@ -171,111 +171,200 @@ describe('validators', () => {
 
 describe('validateConfig', () => {
 	it('should accept a valid minimal config', () => {
-		const buttons: ButtonConfig[] = Array.from({ length: 10 }, (_, i) => ({
-			label: `BTN ${i + 1}`,
-			color: 'red',
-			mode: 'toggle',
-			off_mode: 'dim',
-			message_type: 'cc'
-		} as ButtonConfig));
-
-		const config: MidiCaptainConfig = {
-			device: 'std10',
-			buttons
-		};
+		const config = createMidiCaptainConfig(10);
 		const result = validateConfig(config);
 		expect(result.isValid).toBe(true);
 		expect(result.errors.size).toBe(0);
 	});
 
 	it('should detect invalid button labels', () => {
-		const config: MidiCaptainConfig = {
-			device: 'std10',
-			buttons: [
-				{
-					label: 'TOOLONG',
-					color: 'red',
-					mode: 'toggle',
-					off_mode: 'dim',
-					message_type: 'cc'
-				} as ButtonConfig
-			]
-		};
+		const config = createMidiCaptainConfig(10, {
+			buttons: [createButtonConfig({ label: 'TOOLONG' })]
+		});
 		const result = validateConfig(config);
 		expect(result.isValid).toBe(false);
 		expect(result.errors.has('buttons[0].label')).toBe(true);
 	});
 
 	it('should detect invalid CC numbers', () => {
-		const config: MidiCaptainConfig = {
-			device: 'std10',
-			buttons: [
-				{
-					label: 'BTN 1',
-					color: 'red',
-					mode: 'toggle',
-					off_mode: 'dim',
-					message_type: 'cc',
-					cc: 200
-				} as ButtonConfig
-			]
-		};
+		const config = createMidiCaptainConfig(10, {
+			buttons: [createButtonConfig({ cc: 200 })]
+		});
 		const result = validateConfig(config);
 		expect(result.isValid).toBe(false);
 		expect(result.errors.has('buttons[0].cc')).toBe(true);
 	});
 
 	it('should detect invalid channels', () => {
-		const config: MidiCaptainConfig = {
-			device: 'std10',
-			buttons: [
-				{
-					label: 'BTN 1',
-					color: 'red',
-					mode: 'toggle',
-					off_mode: 'dim',
-					message_type: 'cc',
-					channel: 20
-				} as ButtonConfig
-			]
-		};
+		const config = createMidiCaptainConfig(10, {
+			buttons: [createButtonConfig({ channel: 20 })]
+		});
 		const result = validateConfig(config);
 		expect(result.isValid).toBe(false);
 		expect(result.errors.has('buttons[0].channel')).toBe(true);
 	});
 
 	it('should validate banks in multi-bank mode', () => {
-		const config: MidiCaptainConfig = {
-			device: 'std10',
+		const config = createMidiCaptainConfig(0, {
 			banks: [
 				{
 					name: 'Bank 1',
-					buttons: [
-						{
-							label: 'BTN 1',
-							color: 'red',
-							mode: 'toggle',
-							off_mode: 'dim',
-							message_type: 'cc'
-						} as ButtonConfig
-					]
+					buttons: [createButtonConfig({ label: 'BTN 1' })]
 				},
 				{
 					name: 'Bank 2',
-					buttons: [
-						{
-							label: 'TOOLONG',
-							color: 'blue',
-							mode: 'toggle',
-							off_mode: 'dim',
-							message_type: 'cc'
-						} as ButtonConfig
-					]
+					buttons: [createButtonConfig({ label: 'TOOLONG' })]
 				}
 			]
-		};
+		});
 		const result = validateConfig(config);
 		expect(result.isValid).toBe(false);
 		expect(result.errors.has('banks[1].buttons[0].label')).toBe(true);
+	});
+
+	describe('multi-command arrays', () => {
+		it('should accept valid multi-command press arrays', () => {
+			const testButton = createButtonConfig({
+				press: [
+					{ type: 'cc', cc: 20, value: 127, channel: null, note: null, velocity: null, program: null, pc_step: null, threshold_ms: null },
+					{ type: 'note', note: 60, velocity: 100, channel: null, cc: null, value: null, program: null, pc_step: null, threshold_ms: null }
+				]
+			});
+			const config = createMidiCaptainConfig(6, {
+				device: 'mini6',
+				buttons: [testButton, ...Array.from({ length: 5 }, () => createButtonConfig())]
+			});
+			const result = validateConfig(config);
+		expect(result.isValid).toBe(true);
+	});
+
+	it('should accept valid multi-command with release arrays', () => {
+			const testButton = createButtonConfig({
+				press: [{ type: 'cc', cc: 20, value: 127, channel: null, note: null, velocity: null, program: null, pc_step: null, threshold_ms: null }],
+				release: [{ type: 'cc', cc: 20, value: 0, channel: null, note: null, velocity: null, program: null, pc_step: null, threshold_ms: null }]
+			});
+			const config = createMidiCaptainConfig(6, {
+				device: 'mini6',
+				buttons: [testButton, ...Array.from({ length: 5 }, () => createButtonConfig())]
+			});
+			const result = validateConfig(config);
+			expect(result.isValid).toBe(true);
+		});
+
+		it('should accept PC commands in arrays', () => {
+			const testButton = createButtonConfig({
+				press: [{ type: 'pc', program: 5, channel: 0, cc: null, value: null, note: null, velocity: null, pc_step: null, threshold_ms: null }]
+			});
+			const config = createMidiCaptainConfig(6, {
+				device: 'mini6',
+				buttons: [testButton, ...Array.from({ length: 5 }, () => createButtonConfig())]
+			});
+			const result = validateConfig(config);
+			expect(result.isValid).toBe(true);
+		});
+
+		it('should accept PC increment/decrement commands', () => {
+			const testButton = createButtonConfig({
+				press: [{ type: 'pc_inc', pc_step: 1, channel: null, cc: null, value: null, note: null, velocity: null, program: null, threshold_ms: null }]
+			});
+			const config = createMidiCaptainConfig(6, {
+				device: 'mini6',
+				buttons: [testButton, ...Array.from({ length: 5 }, () => createButtonConfig())]
+			});
+			const result = validateConfig(config);
+			expect(result.isValid).toBe(true);
+		});
+	});
+
+	describe('conditional commands', () => {
+		it('should accept valid conditional commands with button state', () => {
+			const testButtons = [
+				createButtonConfig({
+					label: 'BTN 1',
+					press: [
+						{
+							type: 'conditional',
+							if: {
+								type: 'button_state',
+								button: 1,
+								state: 'on'
+							},
+							then: [
+								{ type: 'cc', cc: 20, value: 127, channel: null, note: null, velocity: null, program: null, pc_step: null, threshold_ms: null }
+							],
+							else: [
+								{ type: 'cc', cc: 20, value: 0, channel: null, note: null, velocity: null, program: null, pc_step: null, threshold_ms: null }
+							],
+							then_label: null,
+							else_label: null
+						}
+					]
+				}),
+				createButtonConfig({ label: 'BTN 2' }),
+				...Array.from({ length: 4 }, () => createButtonConfig())
+			];
+			const config = createMidiCaptainConfig(6, {
+				device: 'mini6',
+				buttons: testButtons
+			});
+			const result = validateConfig(config);
+			expect(result.isValid).toBe(true);
+		});
+
+		it('should accept conditional commands with received MIDI', () => {
+			const testButton = createButtonConfig({
+				press: [
+					{
+						type: 'conditional',
+						if: {
+							type: 'received_midi',
+							cc: 22,
+							channel: 0,
+							operator: '==',
+							value: 127
+						},
+						then: [
+							{ type: 'cc', cc: 30, value: 127, channel: null, note: null, velocity: null, program: null, pc_step: null, threshold_ms: null }
+						],
+						else: null,
+						then_label: 'Active',
+						else_label: null
+					}
+				]
+			});
+			const config = createMidiCaptainConfig(6, {
+				device: 'mini6',
+				buttons: [testButton, ...Array.from({ length: 5 }, () => createButtonConfig())]
+			});
+			const result = validateConfig(config);
+			expect(result.isValid).toBe(true);
+		});
+
+		it('should accept conditional commands with encoder condition', () => {
+			const testButton = createButtonConfig({
+				press: [
+					{
+						type: 'conditional',
+						if: {
+							type: 'encoder',
+							operator: '>',
+							value: 64
+						},
+						then: [
+							{ type: 'cc', cc: 40, value: 127, channel: null, note: null, velocity: null, program: null, pc_step: null, threshold_ms: null }
+						],
+						else: null,
+						then_label: null,
+						else_label: null
+					}
+				]
+			});
+			const config = createMidiCaptainConfig(6, {
+				device: 'mini6',
+				buttons: [testButton, ...Array.from({ length: 5 }, () => createButtonConfig())]
+			});
+			const result = validateConfig(config);
+			expect(result.isValid).toBe(true);
+		});
 	});
 });

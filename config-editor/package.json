@@ -38,6 +38,7 @@
     "@tauri-apps/cli": "^2.10.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/svelte": "^5.3.1",
+    "@vitest/coverage-v8": "^4.1.4",
     "@vitest/ui": "^4.1.4",
     "autoprefixer": "^10.4.27",
     "happy-dom": "^20.9.0",
