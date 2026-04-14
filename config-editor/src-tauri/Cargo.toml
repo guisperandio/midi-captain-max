@@ -1,6 +1,6 @@
 [package]
 name = "config-editor"
-version = "0.1.0"
+version = "2.2.0"
 description = "Configuration editor for MIDI Captain foot controllers"
 authors = ["Maximilian Cascone <max@mcmusicworkshop.com>"]
 edition = "2021"
