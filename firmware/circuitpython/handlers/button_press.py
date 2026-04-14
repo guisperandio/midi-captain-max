@@ -296,6 +296,12 @@ class ButtonPressHandler:
             self.current_state = ButtonPressState.LONG_PRESS
             self.state.long_press_triggered[self.idx] = True
 
+            # TODO: Implement long_press side effects for advanced use cases:
+            # - long_press_color: Apply alternate LED color during hold (requires LED API changes)
+            # - long_press as state change: Optionally treat persist as toggle for select/toggle modes
+            # These features require additional config flags separate from long_press_label_persist
+            # to avoid conflicts with existing label display behavior expectations.
+
             # Dispatch long_press action (already fetched above)
             if effective_long_press:
                 self.callbacks["send_action"](effective_long_press, self.btn_num, self.idx, "long_press")
@@ -371,10 +377,3 @@ class ButtonPressHandler:
             if release_cfg:
                 self.callbacks["send_action"](release_cfg, self.btn_num, self.idx, "release")
             self.callbacks["set_button_state"](self.btn_num, False)
-        elif not self.long_enabled and self.mode != "tap":
-            # Standard release for toggle modes without long-press
-            if self.mode == "momentary":
-                release_cfg = self.callbacks["get_action_cfg"](self.config, "release", btn_state.get_keytime())
-                if release_cfg:
-                    self.callbacks["send_action"](release_cfg, self.btn_num, self.idx, "release")
-                self.callbacks["set_button_state"](self.btn_num, False)

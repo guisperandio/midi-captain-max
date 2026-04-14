@@ -238,15 +238,18 @@ class ActionDispatcher:
             return False
 
         # Prepare evaluator inputs
+        has_expression = self.feature_flags.get("HAS_EXPRESSION", False)
+        has_encoder = self.feature_flags.get("HAS_ENCODER", False)
+        
         exp_vals = {}
-        if self.feature_flags["HAS_EXPRESSION"]:
+        if has_expression:
             exp_vals['exp1'] = self.device_state.exp1_last
             exp_vals['exp2'] = self.device_state.exp2_last
         else:
             exp_vals['exp1'] = 0
             exp_vals['exp2'] = 0
 
-        enc_val = self.device_state.encoder_value if self.feature_flags["HAS_ENCODER"] else 64
+        enc_val = self.device_state.encoder_value if has_encoder else 64
 
         # Use snapshot for button_state conditions when available
         use_snapshot = (condition.get('type') == 'button_state' and
@@ -420,9 +423,11 @@ class ActionDispatcher:
             msg_type = cmd.get("type", "cc")
             channel = cmd.get("channel", 0)
             
-            # Handle nested conditionals
+            # Handle nested conditionals (thread through original button config)
             if msg_type == "conditional":
-                pc_sent = self._handle_conditional(cmd, btn_num, idx, {}, action_name)
+                # Get original button config for consistent label timeout behavior
+                orig_btn_config = self.buttons[idx] if idx < len(self.buttons) else {}
+                pc_sent = self._handle_conditional(cmd, btn_num, idx, orig_btn_config, action_name)
                 pc_command_sent = pc_command_sent or pc_sent
             else:
                 # Send MIDI command

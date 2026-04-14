@@ -50,7 +50,6 @@ from core.config import (
 )
 from core.button import Switch, ButtonState
 from core.banks import BankManager
-from core.condition_evaluator import ConditionEvaluator
 from core.device_state import DeviceState
 from core.constants import (
     DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_CENTER_X, DISPLAY_CENTER_Y,
@@ -677,8 +676,6 @@ for i in range(BUTTON_COUNT):
 
 # Legacy globals for backward compatibility (will be migrated incrementally)
 # These reference device_state properties
-# Legacy globals for backward compatibility (will be migrated incrementally)
-# These reference device_state properties
     # Long-press support state
     # Per-button: time when press started (monotonic), 0 if not pressed
 press_start_times = device_state.press_start_times
@@ -982,6 +979,15 @@ def arm_label_return_timeout(btn_config=None):
     """
     global label_timeout_return_to_select
     label_timeout_return_to_select = display_handlers.arm_label_return_timeout(btn_config)
+
+
+def set_label_timeout(timeout):
+    """Set the label return timeout to a specific value.
+    
+    Used by ActionDispatcher for conditional label timeouts.
+    """
+    global label_timeout_return_to_select
+    label_timeout_return_to_select = timeout
 
 
 def find_selected_button():
@@ -1413,6 +1419,16 @@ def handle_bank_switch(target_bank_idx=None):
     label_timeout_return_to_select = time.monotonic() + 2.0
 
     print(f"[BANK] Switched to bank {target_bank_idx + 1}: {bank_name}")
+    
+    # Update handler references to use new bank's configs/states
+    # This ensures ActionDispatcher, ButtonPressHandlers use current bank
+    device_state.button_states = button_states
+    action_dispatcher.buttons = buttons
+    
+    # Reinitialize button press handlers with new bank's button configs
+    global button_press_handlers
+    button_press_handlers = _initialize_button_press_handlers()
+    
     return True
 
 
@@ -1936,7 +1952,7 @@ action_dispatcher = ActionDispatcher(
         "send_midi_message": send_midi_message,
         "set_label_text": set_label_text,
         "arm_label_return_timeout": arm_label_return_timeout,
-        "set_label_timeout": lambda timeout: setattr(device_state, "label_timeout_return_to_select", timeout),
+        "set_label_timeout": set_label_timeout,
         "clamp_pc_value": clamp_pc_value,
         "flash_pc_button": flash_pc_button,
         "get_button_state_config": get_button_state_config,
