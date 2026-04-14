@@ -36,7 +36,7 @@
   }
 
   function updateElse(commands: CommandOrConditional[]) {
-    onUpdate({ ...conditional, else: commands.length > 0 ? commands : undefined });
+    onUpdate({ ...conditional, else: commands.length > 0 ? commands : null });
   }
 
   function addThenCommand() {

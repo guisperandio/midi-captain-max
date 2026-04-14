@@ -295,8 +295,8 @@ describe('validateConfig', () => {
 							else: [
 								{ type: 'cc', cc: 20, value: 0 }
 							],
-							then_label: null,
-							else_label: null
+
+
 						}
 					]
 				}),
@@ -328,7 +328,7 @@ describe('validateConfig', () => {
 						],
 						else: null,
 						then_label: 'Active',
-						else_label: null
+
 					}
 				]
 			});
@@ -354,8 +354,8 @@ describe('validateConfig', () => {
 							{ type: 'cc', cc: 40, value: 127 }
 						],
 						else: null,
-						then_label: null,
-						else_label: null
+
+
 					}
 				]
 			});
