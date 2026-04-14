@@ -23,12 +23,14 @@
   );
 
   // Generate channel options with labels
-  let channelOptions = $derived(
-    Array.from({ length: 16 }, (_, i) => ({
+  // Include "Use Global" option to allow inheriting global channel
+  let channelOptions = $derived([
+    { value: 'global', label: `Use Global (${formatChannel(globalChannel, $config)})` },
+    ...Array.from({ length: 16 }, (_, i) => ({
       value: i,
       label: formatChannel(i, $config)
     }))
-  );
+  ]);
 
   function updateMidiField(field: string, value: any) {
     if (!isConditional) {
@@ -113,11 +115,12 @@
       <div class="field channel-field">
         <label>Channel</label>
         <select
-          value={(command as MidiCommand).channel ?? globalChannel}
+          value={(command as MidiCommand).channel !== undefined ? (command as MidiCommand).channel : 'global'}
           onchange={(e) => {
-            const val = parseInt((e.target as HTMLSelectElement).value);
-            // Only set channel if different from global
-            updateMidiField('channel', val === globalChannel ? undefined : val);
+            const rawVal = (e.target as HTMLSelectElement).value;
+            // 'global' means inherit from global_channel (store as undefined)
+            // Any numeric value means explicit channel override
+            updateMidiField('channel', rawVal === 'global' ? undefined : parseInt(rawVal));
           }}
         >
           {#each channelOptions as opt}

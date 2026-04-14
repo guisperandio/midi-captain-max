@@ -474,8 +474,9 @@ pub struct MidiCaptainConfig {
     /// Channel labels: optional mapping of channel numbers (as strings "0"-"15") to device names
     /// Example: { "0": "Quad Cortex", "1": "Timespace Delay" }
     /// Used in UI to show "Quad Cortex (Ch1)" instead of "Channel 1"
+    /// Uses BTreeMap instead of HashMap to ensure stable, sorted JSON output
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub channel_labels: Option<std::collections::HashMap<String, String>>,
+    pub channel_labels: Option<std::collections::BTreeMap<String, String>>,
 }
 
 impl MidiCaptainConfig {

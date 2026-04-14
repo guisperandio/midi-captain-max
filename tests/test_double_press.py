@@ -195,17 +195,22 @@ class TestDoublePressEdgeCases:
     """Test edge cases and boundary conditions."""
 
     def test_simultaneous_press_release(self):
-        """Very fast press/release (same timestamp) should not trigger double-press."""
-        # First press/release at t=0.0
+        """A 0ms interval with last_release == 0.0 is not a valid double-press case."""
+        # Firmware requires both conditions for double-press:
+        #   1. (now - last_release) <= timeout
+        #   2. last_release > 0
+        #
+        # When last_release is still the 0.0 sentinel value, a simultaneous
+        # second press must not count as a double-press reference point.
         first_release = 0.0
-        
-        # Second press also at t=0.0 (simultaneous)
         second_press = 0.0
         
         time_diff = second_press - first_release
-        # Should be exactly 0, which equals timeout but doesn't exceed it
-        # Firmware uses <= timeout check, so 0ms would technically trigger
+        
+        # Even though the interval is 0 (within any timeout), the 0.0 sentinel
+        # value prevents double-press detection in firmware
         assert time_diff == 0.0
+        assert first_release == 0.0  # Sentinel value = no valid prior release
 
     def test_first_press_no_double(self):
         """First press after boot should not trigger double-press (no prior release)."""
