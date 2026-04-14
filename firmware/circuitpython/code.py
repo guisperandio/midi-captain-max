@@ -1936,6 +1936,7 @@ action_dispatcher = ActionDispatcher(
         "send_midi_message": send_midi_message,
         "set_label_text": set_label_text,
         "arm_label_return_timeout": arm_label_return_timeout,
+        "set_label_timeout": lambda timeout: setattr(device_state, "label_timeout_return_to_select", timeout),
         "clamp_pc_value": clamp_pc_value,
         "flash_pc_button": flash_pc_button,
         "get_button_state_config": get_button_state_config,
@@ -1956,6 +1957,7 @@ action_dispatcher = ActionDispatcher(
     },
     constants={
         "LABEL_RETURN_TIMEOUT_SEC": LABEL_RETURN_TIMEOUT_SEC,
+        "INTER_COMMAND_DELAY_SEC": 0.002,  # 2ms for MIDI buffer management
     }
 )
 print("[INIT] Initialized ActionDispatcher for MIDI command execution")

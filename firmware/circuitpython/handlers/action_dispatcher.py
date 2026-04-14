@@ -15,6 +15,7 @@ Date: 2026-04-14
 """
 
 import time
+from core.condition_evaluator import ConditionEvaluator
 
 
 class _SnapState:
@@ -55,6 +56,7 @@ class ActionDispatcher:
                 - send_midi_message: (msg, channel) -> None
                 - set_label_text: (label, text) -> None
                 - arm_label_return_timeout: (btn_config) -> None
+                - set_label_timeout: (timeout) -> None
                 - clamp_pc_value: (value) -> int
                 - flash_pc_button: (btn_num, flash_ms) -> None
                 - get_button_state_config: (btn_config, keytime) -> dict
@@ -71,7 +73,35 @@ class ActionDispatcher:
                 - HAS_ENCODER: bool
             constants: Dict with firmware constants:
                 - LABEL_RETURN_TIMEOUT_SEC: float
+                - INTER_COMMAND_DELAY_SEC: float
         """
+        # Validate required callbacks
+        required_callbacks = [
+            "send_midi_message", "set_label_text", "arm_label_return_timeout",
+            "set_label_timeout", "clamp_pc_value", "flash_pc_button", "get_button_state_config"
+        ]
+        for cb_name in required_callbacks:
+            if cb_name not in callbacks:
+                raise ValueError("Missing required callback: {}".format(cb_name))
+        
+        # Validate required display refs
+        required_display_refs = ["button_name_label", "status_label"]
+        for ref_name in required_display_refs:
+            if ref_name not in display_refs:
+                raise ValueError("Missing required display_ref: {}".format(ref_name))
+        
+        # Validate required MIDI messages
+        required_midi_msgs = ["cc", "note_on", "note_off", "pc"]
+        for msg_name in required_midi_msgs:
+            if msg_name not in midi_msgs:
+                raise ValueError("Missing required midi_msg: {}".format(msg_name))
+        
+        # Validate required constants
+        required_constants = ["LABEL_RETURN_TIMEOUT_SEC", "INTER_COMMAND_DELAY_SEC"]
+        for const_name in required_constants:
+            if const_name not in constants:
+                raise ValueError("Missing required constant: {}".format(const_name))
+        
         self.device_state = device_state
         self.buttons = buttons
         self.callbacks = callbacks
@@ -131,7 +161,7 @@ class ActionDispatcher:
                     persist = btn_config.get("long_press_label_persist", True)
                     if not persist:
                         # Override select_group logic: force timeout even for select buttons
-                        self.device_state.label_timeout_return_to_select = (
+                        self.callbacks["set_label_timeout"](
                             time.monotonic() + self.constants["LABEL_RETURN_TIMEOUT_SEC"]
                         )
                     else:
@@ -167,7 +197,7 @@ class ActionDispatcher:
             # Small delay between commands for MIDI buffer management (MIDI Thru chains)
             # Skip delay before first command for immediate response
             if cmd_idx > 0:
-                time.sleep(0.002)  # 2ms between commands
+                time.sleep(self.constants["INTER_COMMAND_DELAY_SEC"])
 
             msg_type = cmd.get("type", "cc")
             channel = cmd.get("channel", 0)
@@ -196,9 +226,6 @@ class ActionDispatcher:
         Returns:
             True if any PC command was sent in the conditional branch
         """
-        # Import here to avoid circular dependency
-        from core.condition_evaluator import ConditionEvaluator
-
         print(f"[CONDITIONAL] Raw cmd dict keys: {list(cmd.keys())}")
         print(f"[CONDITIONAL] Full cmd dict: {cmd}")
 
@@ -254,7 +281,9 @@ class ActionDispatcher:
 
         print(f"[CONDITIONAL] then_label={then_label}, else_label={else_label}, persist={conditional_persist}")
 
-        # Execute appropriate branch
+        # Execute appropriate branch and track if PC commands were sent
+        pc_command_sent = False
+        
         if condition_result:
             print(f"[CONDITIONAL] Condition TRUE (button {btn_num}), executing THEN branch with {len(then_commands)} command(s)")
             if then_label:
@@ -265,7 +294,8 @@ class ActionDispatcher:
                     self.callbacks["arm_label_return_timeout"](btn_config)
             else:
                 print("[CONDITIONAL] No THEN label configured")
-            self.send_action(then_commands, btn_num, idx, action_name, skip_label_update=True)
+            # Track PC commands from then branch
+            pc_command_sent = self._dispatch_commands_recursive(then_commands, btn_num, idx, action_name)
         else:
             print(f"[CONDITIONAL] Condition FALSE (button {btn_num}), executing ELSE branch with {len(else_commands)} command(s)")
             if else_label:
@@ -276,10 +306,10 @@ class ActionDispatcher:
                     self.callbacks["arm_label_return_timeout"](btn_config)
             else:
                 print("[CONDITIONAL] No ELSE label configured")
-            self.send_action(else_commands, btn_num, idx, action_name, skip_label_update=True)
+            # Track PC commands from else branch
+            pc_command_sent = self._dispatch_commands_recursive(else_commands, btn_num, idx, action_name)
 
-        # Conditionals don't directly send PC commands, but their branches might
-        return False
+        return pc_command_sent
 
     def _send_midi_command(self, cmd, msg_type, channel, btn_num, idx):
         # type: (dict, str, int, int, int) -> bool
@@ -353,3 +383,50 @@ class ActionDispatcher:
             print(f"[ERROR] Failed to send command (button {btn_num}): {e}")
             # Continue to next command
             return False
+    
+    def _dispatch_commands_recursive(self, commands, btn_num, idx, action_name):
+        # type: (list, int, int, str) -> bool
+        """
+        Recursively dispatch commands (for conditional branches).
+        
+        Args:
+            commands: List of command dicts to execute
+            btn_num: 1-indexed button number
+            idx: 0-indexed button index
+            action_name: Action type name
+        
+        Returns:
+            True if any PC command was sent
+        """
+        if not commands:
+            return False
+        
+        # Normalize to list
+        if isinstance(commands, dict):
+            commands = [commands]
+        elif not isinstance(commands, list):
+            return False
+        
+        pc_command_sent = False
+        
+        for cmd_idx, cmd in enumerate(commands):
+            if not isinstance(cmd, dict):
+                continue
+            
+            # Small delay between commands (skip first)
+            if cmd_idx > 0:
+                time.sleep(self.constants["INTER_COMMAND_DELAY_SEC"])
+            
+            msg_type = cmd.get("type", "cc")
+            channel = cmd.get("channel", 0)
+            
+            # Handle nested conditionals
+            if msg_type == "conditional":
+                pc_sent = self._handle_conditional(cmd, btn_num, idx, {}, action_name)
+                pc_command_sent = pc_command_sent or pc_sent
+            else:
+                # Send MIDI command
+                pc_sent = self._send_midi_command(cmd, msg_type, channel, btn_num, idx)
+                pc_command_sent = pc_command_sent or pc_sent
+        
+        return pc_command_sent
