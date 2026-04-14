@@ -259,6 +259,9 @@ export interface MidiCaptainConfig {
   long_press_threshold_ms?: number;
   // Optional global default timeout for double-press detection in milliseconds
   double_press_timeout_ms?: number;
+  // Optional custom labels for MIDI channels (e.g., "Quad Cortex", "Timespace")
+  // Key is channel number as string (0-15), value is the label
+  channel_labels?: Record<string, string>;
 
   // ===== MULTI-BANK SUPPORT =====
   // If 'banks' is present, use multi-bank mode (preferred)

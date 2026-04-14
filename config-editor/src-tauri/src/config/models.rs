@@ -471,6 +471,11 @@ pub struct MidiCaptainConfig {
     pub long_press_threshold_ms: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub double_press_timeout_ms: Option<u16>,
+    /// Channel labels: optional mapping of channel numbers (as strings "0"-"15") to device names
+    /// Example: { "0": "Quad Cortex", "1": "Timespace Delay" }
+    /// Used in UI to show "Quad Cortex (Ch1)" instead of "Channel 1"
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub channel_labels: Option<std::collections::HashMap<String, String>>,
 }
 
 impl MidiCaptainConfig {
@@ -495,5 +500,52 @@ impl MidiCaptainConfig {
             }
         }
         self.buttons.as_mut().unwrap()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_roundtrip_channel_labels() {
+        // Test that channel_labels field survives deserialization/serialization
+        let json = r#"{
+            "device": "std10",
+            "global_channel": 0,
+            "channel_labels": {
+                "0": "Quad Cortex",
+                "1": "Timespace Delay",
+                "2": "HX Stomp"
+            },
+            "buttons": []
+        }"#;
+
+        let config: MidiCaptainConfig = serde_json::from_str(json).expect("Failed to parse");
+        assert!(config.channel_labels.is_some());
+        let labels = config.channel_labels.as_ref().unwrap();
+        assert_eq!(labels.get("0"), Some(&"Quad Cortex".to_string()));
+        assert_eq!(labels.get("1"), Some(&"Timespace Delay".to_string()));
+        assert_eq!(labels.get("2"), Some(&"HX Stomp".to_string()));
+
+        let serialized = serde_json::to_string_pretty(&config).expect("Failed to serialize");
+        assert!(serialized.contains("channel_labels"));
+        assert!(serialized.contains("Quad Cortex"));
+    }
+
+    #[test]
+    fn test_channel_labels_optional() {
+        // Test that channel_labels is optional and doesn't appear when absent
+        let json = r#"{
+            "device": "std10",
+            "global_channel": 0,
+            "buttons": []
+        }"#;
+
+        let config: MidiCaptainConfig = serde_json::from_str(json).expect("Failed to parse");
+        assert!(config.channel_labels.is_none());
+
+        let serialized = serde_json::to_string_pretty(&config).expect("Failed to serialize");
+        assert!(!serialized.contains("channel_labels")); // Should not appear when None
     }
 }

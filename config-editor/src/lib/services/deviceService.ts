@@ -248,6 +248,40 @@ export async function reloadFromDevice() {
 }
 
 /**
+ * Hot reload the device firmware to apply config changes without power cycling
+ * Works by sending a special serial command to trigger a soft reset
+ */
+export async function hotReloadDevice() {
+  const device = get(selectedDevice);
+  if (!device) return;
+
+  try {
+    statusMessage.set('Triggering device reload...');
+    isReloadingDevice.set(true);
+    
+    await triggerDeviceReload(device.path);
+    
+    // Device will disconnect and reconnect automatically
+    showToast('Device reloading... Config will apply on reconnect.', 'success');
+    
+    // Clear reload flag after expected reconnect time
+    setTimeout(() => {
+      isReloadingDevice.set(false);
+    }, 5000);
+    
+    statusMessage.set('Device reloading...');
+  } catch (e: any) {
+    console.warn('[HOT RELOAD] Failed:', e);
+    isReloadingDevice.set(false);
+    statusMessage.set('Hot reload failed - try restarting the device manually');
+    showToast(
+      'Hot reload failed. Try:\n1. Enable Dev Mode in Device Settings\n2. Or manually restart the device',
+      'error'
+    );
+  }
+}
+
+/**
  * Show instructions for resetting the device
  */
 export async function resetDevice() {

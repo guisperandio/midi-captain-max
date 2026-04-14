@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { config } from '$lib/formStore';
+  import { formatChannel } from '$lib/utils';
   import type { CommandOrConditional, MidiCommand, MessageType } from '$lib/types';
   import ConditionalCommandBlock from './ConditionalCommandBlock.svelte';
 
@@ -18,6 +20,14 @@
     typeof command === 'object' &&
     'type' in command &&
     command.type === 'conditional'
+  );
+
+  // Generate channel options with labels
+  let channelOptions = $derived(
+    Array.from({ length: 16 }, (_, i) => ({
+      value: i,
+      label: formatChannel(i, $config)
+    }))
   );
 
   function updateMidiField(field: string, value: any) {
@@ -100,15 +110,20 @@
         </div>
       {/if}
 
-      <div class="field">
+      <div class="field channel-field">
         <label>Channel</label>
-        <input type="number" min="1" max="16"
-          value={(command as MidiCommand).channel !== undefined ? (command as MidiCommand).channel! + 1 : ''}
-          placeholder={`${globalChannel + 1}`}
-          onblur={(e) => {
-            const val = numVal(e);
-            updateMidiField('channel', val !== undefined ? val - 1 : undefined);
-          }} />
+        <select
+          value={(command as MidiCommand).channel ?? globalChannel}
+          onchange={(e) => {
+            const val = parseInt((e.target as HTMLSelectElement).value);
+            // Only set channel if different from global
+            updateMidiField('channel', val === globalChannel ? undefined : val);
+          }}
+        >
+          {#each channelOptions as opt}
+            <option value={opt.value}>{opt.label}</option>
+          {/each}
+        </select>
       </div>
     </div>
 

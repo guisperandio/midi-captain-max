@@ -211,6 +211,7 @@
 
   // Reload delegated to deviceService
   const reloadFromDevice = deviceService.reloadFromDevice;
+  const hotReloadDevice = deviceService.hotReloadDevice;
 
   // Reset instructions delegated to deviceService
   const resetDevice = deviceService.resetDevice;
@@ -577,8 +578,9 @@
       {#if $firmwareVersion}
         <span class="status-info" title="Application version">v{$firmwareVersion}</span>
       {/if}
-      <button class="ghost-btn" onclick={reloadFromDevice} disabled={!$selectedDevice || $isLoading}>Reload</button>
-      <button class="ghost-btn" onclick={resetDevice} disabled={!$selectedDevice || $isLoading}>Reset Device</button>
+      <button class="ghost-btn" onclick={reloadFromDevice} disabled={!$selectedDevice || $isLoading} title="Reload config from device">Reload</button>
+      <button class="ghost-btn" onclick={hotReloadDevice} disabled={!$selectedDevice || $isLoading || $isReloadingDevice} title="Trigger device restart to apply config changes">Hot Reload Device</button>
+      <button class="ghost-btn" onclick={resetDevice} disabled={!$selectedDevice || $isLoading} title="Show manual restart instructions">Reset Device</button>
     </div>
   </footer>
 </div>

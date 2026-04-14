@@ -959,10 +959,14 @@ def show_selected_button_label():
     """Update center display to show the currently selected button's label.
 
     If no select button is active, clears the display to show a ready state.
+    Applies per-state label overrides if keytimes are configured.
     """
     idx, btn_config = find_selected_button()
     if idx is not None:
-        set_label_text(button_name_label, btn_config.get("label", str(idx + 1)))
+        # Get label with per-state override if applicable
+        state_cfg = get_button_state_config(btn_config, button_states[idx].get_keytime())
+        label = state_cfg.get("label", str(idx + 1))
+        set_label_text(button_name_label, label)
         set_label_text(status_label, "")  # Clear status line
     else:
         # No select button active - clear display to ready state
@@ -1203,8 +1207,9 @@ def _send_action_from_cfg(action_cfg, btn_num, idx, action_name=None, skip_label
                 print("[LABEL] No long_press_label configured, keeping current display")
                 pass
         else:
-            # Normal press/release action - always show button label
-            label_text = btn_config.get("label", str(btn_num))
+            # Normal press/release action - always show button label (with per-state override if applicable)
+            state_cfg = get_button_state_config(btn_config, button_states[idx].get_keytime())
+            label_text = state_cfg.get("label", str(btn_num))
             print(f"[LABEL] Setting button label: '{label_text}'")
             set_label_text(button_name_label, label_text)
             arm_label_return_timeout(btn_config)
@@ -1670,7 +1675,10 @@ def _process_incoming_midi(msg):
                 if sg:
                     _deselect_group(sg, i)
 
-                set_label_text(button_name_label, btn_config.get("label", str(i + 1)))
+                # Get label with per-state override if applicable
+                state_cfg = get_button_state_config(btn_config, button_states[i].get_keytime())
+                label = state_cfg.get("label", str(i + 1))
+                set_label_text(button_name_label, label)
                 set_label_text(status_label, f"RX CC{cc}={val}")
                 arm_label_return_timeout(btn_config)
                 break
@@ -1691,7 +1699,10 @@ def _process_incoming_midi(msg):
                         sg = btn_config.get("select_group")
                         if sg:
                             _deselect_group(sg, i)
-                    set_label_text(button_name_label, btn_config.get("label", str(i + 1)))
+                    # Get label with per-state override if applicable
+                    state_cfg = get_button_state_config(btn_config, button_states[i].get_keytime())
+                    label = state_cfg.get("label", str(i + 1))
+                    set_label_text(button_name_label, label)
                     set_label_text(status_label, f"RX Note{note}")
                     arm_label_return_timeout(btn_config)
                     break
@@ -1701,7 +1712,10 @@ def _process_incoming_midi(msg):
             for i, btn_config in enumerate(buttons):
                 if btn_config.get("type") == "note" and btn_config.get("note") == note and btn_config.get("channel", 0) == msg_channel:
                     set_button_state(i + 1, False)
-                    set_label_text(button_name_label, btn_config.get("label", str(i + 1)))
+                    # Get label with per-state override if applicable
+                    state_cfg = get_button_state_config(btn_config, button_states[i].get_keytime())
+                    label = state_cfg.get("label", str(i + 1))
+                    set_label_text(button_name_label, label)
                     set_label_text(status_label, f"RX NoteOff{note}")
                     arm_label_return_timeout(btn_config)
                     break

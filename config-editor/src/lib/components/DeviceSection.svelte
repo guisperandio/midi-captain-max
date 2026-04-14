@@ -1,6 +1,7 @@
 <script lang="ts">
   import { config, setDevice, updateField } from '$lib/formStore';
   import Toggle from './Toggle.svelte';
+  import ChannelLabelsSection from './ChannelLabelsSection.svelte';
   import type { DeviceType, MidiTransport } from '$lib/types';
 
   function handleDeviceChange(e: Event) {
@@ -115,6 +116,9 @@
         </p>
       </div>
     </div>
+
+    <!-- MIDI Channel Labels -->
+    <ChannelLabelsSection />
   </div>
 </div>
 
