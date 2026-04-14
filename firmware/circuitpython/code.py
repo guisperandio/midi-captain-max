@@ -448,6 +448,10 @@ display = ST7789(
     rotation=DISPLAY_ROTATION,
 )
 
+# Allow display controller to stabilize before sending commands
+# Without this delay, the display may show noise from uninitialized RAM
+time.sleep(0.05)  # 50ms delay
+
 # Show blank black screen immediately to avoid displaying uninitialized RAM noise
 blank_group = displayio.Group()
 blank_bitmap = displayio.Bitmap(DISPLAY_WIDTH, DISPLAY_HEIGHT, 1)
