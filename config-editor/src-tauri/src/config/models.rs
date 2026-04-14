@@ -4,6 +4,7 @@
 
 use super::types::*;
 use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 
 // Default value functions for serde
 fn default_bank_switch_method() -> BankSwitchMethod {
@@ -11,7 +12,8 @@ fn default_bank_switch_method() -> BankSwitchMethod {
 }
 
 /// Per-state overrides for keytimes cycling
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, TS)]
+#[ts(export)]
 pub struct StateOverride {
     // Multi-command event arrays (per-state actions)
     // Now supports conditional commands in addition to regular MIDI commands
@@ -66,7 +68,8 @@ pub struct StateOverride {
 }
 
 /// MIDI command for multi-command event arrays
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, TS)]
+#[ts(export)]
 pub struct MidiCommand {
     #[serde(rename = "type", default)]
     pub command_type: MessageType,
@@ -94,7 +97,8 @@ pub struct MidiCommand {
 }
 
 /// Conditional command wrapper for if/then/else logic
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct ConditionalCommand {
     #[serde(rename = "type")]
     pub command_type: String, // Always "conditional"
@@ -111,7 +115,8 @@ pub struct ConditionalCommand {
 }
 
 /// Union type for command arrays - can be regular MIDI commands or conditional wrappers
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
 #[serde(untagged)]
 pub enum CommandOrConditional {
     Midi(MidiCommand),
@@ -169,7 +174,8 @@ where
 }
 
 /// Button configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct ButtonConfig {
     pub label: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -299,7 +305,8 @@ fn is_default_message_type(t: &MessageType) -> bool {
 }
 
 /// Encoder push button configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct EncoderPush {
     pub enabled: bool,
     pub cc: u8,
@@ -315,7 +322,8 @@ pub struct EncoderPush {
 }
 
 /// Rotary encoder configuration (STD10 only)
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct EncoderConfig {
     pub enabled: bool,
     pub cc: u8,
@@ -340,7 +348,8 @@ fn default_initial() -> u8 {
 }
 
 /// Expression pedal configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct ExpressionConfig {
     pub enabled: bool,
     pub cc: u8,
@@ -362,14 +371,16 @@ fn default_threshold() -> u8 {
 }
 
 /// Expression pedals container
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct ExpressionPedals {
     pub exp1: ExpressionConfig,
     pub exp2: ExpressionConfig,
 }
 
 /// Display text size settings
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct DisplayConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub button_text_size: Option<String>,
@@ -382,7 +393,8 @@ pub struct DisplayConfig {
 }
 
 /// Splash screen configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct SplashScreenConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enabled: Option<bool>,
@@ -393,14 +405,16 @@ pub struct SplashScreenConfig {
 }
 
 /// Bank configuration for multi-bank mode
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct BankConfig {
     pub name: String,
     pub buttons: Vec<ButtonConfig>,
 }
 
 /// Bank switching configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct BankSwitchConfig {
     #[serde(default = "default_bank_switch_method")]
     pub method: BankSwitchMethod,
@@ -422,7 +436,8 @@ pub struct BankSwitchConfig {
 }
 
 /// Complete MIDI Captain configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct MidiCaptainConfig {
     #[serde(default)]
     pub device: DeviceType,

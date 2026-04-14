@@ -126,6 +126,32 @@ jobs:
         working-directory: config-editor/src-tauri
         run: cargo test
 
+  test-config-editor-frontend:
+    name: Test Config Editor (Frontend)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: config-editor/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: config-editor
+        run: npm ci
+
+      - name: Run frontend tests
+        working-directory: config-editor
+        run: npm run test:run
+
+      - name: Run type check
+        working-directory: config-editor
+        run: npm run check
+
   build-zip:
     name: Build Firmware Zip
     runs-on: ubuntu-latest
@@ -220,7 +246,7 @@ jobs:
     name: Build Config Editor (macOS)
     runs-on: macos-latest
     timeout-minutes: 30
-    needs: [lint, test-config-editor-rust]
+    needs: [lint, test-config-editor-rust, test-config-editor-frontend]
     permissions:
       contents: read
     steps:
@@ -364,7 +390,7 @@ jobs:
     name: Build Config Editor (Windows)
     runs-on: windows-latest
     timeout-minutes: 30
-    needs: [lint, test-config-editor-rust]
+    needs: [lint, test-config-editor-rust, test-config-editor-frontend]
     permissions:
       contents: read
     steps:
