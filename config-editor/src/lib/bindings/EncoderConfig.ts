@@ -4,4 +4,4 @@ import type { EncoderPush } from "./EncoderPush";
 /**
  * Rotary encoder configuration (STD10 only)
  */
-export type EncoderConfig = { enabled: boolean, cc: number, label: string, min: number, max: number, initial: number, steps: number | null, push: EncoderPush | null, channel?: number, };
+export type EncoderConfig = { enabled: boolean, cc: number, label: string, min: number, max: number, initial: number, steps?: number, push?: EncoderPush, channel?: number, };

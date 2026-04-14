@@ -229,30 +229,35 @@ pub struct ButtonConfig {
 
     // ===== NEW: Multi-command event arrays =====
     // Now supports conditional commands in addition to regular MIDI commands
+    #[ts(skip)]
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
         deserialize_with = "deserialize_one_or_many"
     )]
     pub press: Option<Vec<CommandOrConditional>>,
+    #[ts(skip)]
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
         deserialize_with = "deserialize_one_or_many"
     )]
     pub release: Option<Vec<CommandOrConditional>>,
+    #[ts(skip)]
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
         deserialize_with = "deserialize_one_or_many"
     )]
     pub long_press: Option<Vec<CommandOrConditional>>,
+    #[ts(skip)]
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
         deserialize_with = "deserialize_one_or_many"
     )]
     pub long_release: Option<Vec<CommandOrConditional>>,
+    #[ts(skip)]
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
@@ -382,7 +387,11 @@ pub struct EncoderConfig {
     pub max: u8,
     #[serde(default = "default_initial")]
     pub initial: u8,
+    #[ts(optional)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub steps: Option<u8>,
+    #[ts(optional)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub push: Option<EncoderPush>,
     #[ts(optional)]
     #[serde(skip_serializing_if = "Option::is_none")]
