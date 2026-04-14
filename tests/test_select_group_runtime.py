@@ -42,6 +42,9 @@ def test_select_group_short_press_and_long_press(tmp_path, monkeypatch, mock_tim
     validated = validate_config(cfg, button_count=fw.BUTTON_COUNT)
     fw.buttons = validated["buttons"]
 
+    # Reinitialize handlers after config change
+    fw.button_press_handlers = fw._initialize_button_press_handlers()
+
     idx = _first_button_index(fw)
     sw_a = fw.switches[idx]
     sw_b = fw.switches[idx + 1]
@@ -65,8 +68,14 @@ def test_select_group_short_press_and_long_press(tmp_path, monkeypatch, mock_tim
     assert fw.button_states[0].state == False
     assert fw.button_states[1].state == True
 
+    # Reset press state for clean long-press test
+    fw.device_state.reset_button_press(1)
+
     # Now simulate holding B long enough to trigger long_press
-    seq_b_long = [(True, True)] * 6 + [(True, False)]
+    # changed=True, pressed=True on first iteration (press starts)
+    # changed=False, pressed=True for subsequent iterations (held)
+    # changed=True, pressed=False on last iteration (release)
+    seq_b_long = [(True, True)] + [(False, True)] * 5 + [(True, False)]
     calls_b_long = {"i": 0}
 
     def fake_changed_b_long():

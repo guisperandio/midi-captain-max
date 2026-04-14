@@ -50,7 +50,7 @@ from core.config import (
 )
 from core.button import Switch, ButtonState
 from core.banks import BankManager
-from core.condition_evaluator import ConditionEvaluator
+from core.device_state import DeviceState
 from core.constants import (
     DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_CENTER_X, DISPLAY_CENTER_Y,
     DISPLAY_BACKGROUND_COLOR, DISPLAY_STATUS_TEXT_COLOR, COLOR_WHITE,
@@ -73,6 +73,8 @@ from handlers import display as display_handlers
 from handlers import timers as timer_handlers
 from handlers import button as button_handlers
 from handlers import encoder as encoder_handlers
+from handlers.button_press import ButtonPressHandler, ButtonPressState
+from handlers.action_dispatcher import ActionDispatcher
 
 # =============================================================================
 # Font Size Configuration
@@ -651,69 +653,99 @@ if len(banks) > 0:
 else:
     print("No banks configured, BankManager disabled")
 
-    # Long-press support state
-    # Per-button: time when press started (monotonic), 0 if not pressed
-press_start_times = [0.0] * BUTTON_COUNT
-# Whether long-press action was already triggered for this button during current hold
-long_press_triggered = [False] * BUTTON_COUNT
-# Guard to avoid executing the short-press action more than once per press/release
-short_action_executed = [False] * BUTTON_COUNT
-# Per-button snapshot captured at press-down time. Each entry is either
-# None (no snapshot) or a dict: { 'states': [bool...], 'keytimes': [int...] }
-state_at_press = [None] * BUTTON_COUNT
-# Default threshold (ms) if not provided per-button; can be overridden in config
-LONG_PRESS_THRESHOLD_MS = config.get("long_press_threshold_ms", DEFAULT_LONG_PRESS_MS)
+# Initialize DeviceState to centralize all runtime state
+device_state = DeviceState(BUTTON_COUNT)
+device_state.button_states = button_states
+device_state.bank_manager = bank_manager
+print(f"[INIT] DeviceState initialized for {BUTTON_COUNT} buttons")
 
-# Double-press support state
-# Per-button: time when button was last released (monotonic), 0 if never released
-last_release_times = [0.0] * BUTTON_COUNT
-# Per-button: flag indicating if a double-press was detected on the current press/release cycle
-double_press_consumed = [False] * BUTTON_COUNT
-# Default double-press timeout (ms) if not provided in config
-DOUBLE_PRESS_TIMEOUT_MS = config.get("double_press_timeout_ms", DEFAULT_DOUBLE_PRESS_TIMEOUT_MS)
-
-# PC button flash timers
-# Per-button: expiry time for PC flash (monotonic), 0 if not flashing
-pc_flash_timers = [0.0] * BUTTON_COUNT
-
-blink_state = [False] * BUTTON_COUNT        # Current visual blink state (True=show ON color, False=show OFF color)
-blink_next_toggle = [0.0] * BUTTON_COUNT    # Next monotonic time to toggle blink state
-blink_rate_ms = [config.get("tap_rate_ms", 500)] * BUTTON_COUNT
+# Initialize per-button tap rate from config
 for i in range(BUTTON_COUNT):
     try:
         btn_cfg = buttons[i] if i < len(buttons) else {}
         br = btn_cfg.get("tap_rate_ms", config.get("tap_rate_ms", 500))
         if not isinstance(br, int) or br <= 0:
             br = 500
-        blink_rate_ms[i] = br
+        device_state.blink_rate_ms[i] = br
     except (IndexError, KeyError, TypeError) as e:
         print(f"Blink rate config error for button {i}: {e}")
-        blink_rate_ms[i] = config.get("tap_rate_ms", 500)
+        device_state.blink_rate_ms[i] = config.get("tap_rate_ms", 500)
     except Exception as e:
         print(f"Unexpected blink rate error for button {i}: {e}")
-        blink_rate_ms[i] = config.get("tap_rate_ms", 500)
+        device_state.blink_rate_ms[i] = config.get("tap_rate_ms", 500)
+
+# Legacy globals for backward compatibility (will be migrated incrementally)
+# These reference device_state properties
+    # Long-press support state
+    # Per-button: time when press started (monotonic), 0 if not pressed
+press_start_times = device_state.press_start_times
+# Whether long-press action was already triggered for this button during current hold
+long_press_triggered = device_state.long_press_triggered
+# Guard to avoid executing the short-press action more than once per press/release
+short_action_executed = device_state.short_action_executed
+# Per-button snapshot captured at press-down time. Each entry is either
+# None (no snapshot) or a dict: { 'states': [bool...], 'keytimes': [int...] }
+state_at_press = device_state.state_at_press
+# Default threshold (ms) if not provided per-button; can be overridden in config
+LONG_PRESS_THRESHOLD_MS = config.get("long_press_threshold_ms", DEFAULT_LONG_PRESS_MS)
+
+# Double-press support state
+# Per-button: time when button was last released (monotonic), 0 if never released
+last_release_times = device_state.last_release_times
+# Per-button: flag indicating if a double-press was detected on the current press/release cycle
+double_press_consumed = device_state.double_press_consumed
+# Default double-press timeout (ms) if not provided in config
+DOUBLE_PRESS_TIMEOUT_MS = config.get("double_press_timeout_ms", DEFAULT_DOUBLE_PRESS_TIMEOUT_MS)
+
+# PC button flash timers
+# Per-button: expiry time for PC flash (monotonic), 0 if not flashing
+pc_flash_timers = device_state.pc_flash_timers
+
+blink_state = device_state.blink_state        # Current visual blink state (True=show ON color, False=show OFF color)
+blink_next_toggle = device_state.blink_next_toggle    # Next monotonic time to toggle blink state
+blink_rate_ms = device_state.blink_rate_ms
 
 # Tap-tempo tracking: per-button recent tap timestamps (monotonic seconds)
 # We store up to TAP_HISTORY_SIZE taps and compute average interval to set blink rate.
-tap_timestamps = [[] for _ in range(BUTTON_COUNT)]
+tap_timestamps = device_state.tap_timestamps
 # Per-button tap active expiry (monotonic seconds). While now < tap_active_until[i]
 # the button will visually blink.
-tap_active_until = [0.0] * BUTTON_COUNT
+tap_active_until = device_state.tap_active_until
 
 # MIDI state tracking for conditional actions
 # Dict[channel][cc_number] = value
-received_cc_values = {}
+received_cc_values = device_state.received_cc_values
 
 # Program Change tracking: current PC value per MIDI channel (0-127)
 # Used by pc_inc/pc_dec buttons to track their position
-pc_values = [0] * PC_VALUES_SIZE
+pc_values = device_state.pc_values
 
 # Performance optimization: batch LED updates
 # Set led_dirty = True whenever LEDs change, then call pixels.show() once at end of loop
-led_dirty = False
+led_dirty = False  # Note: will be migrated to device_state.led_dirty
 
 # Optional performance monitoring (enable for debugging slow operations)
 ENABLE_PERFORMANCE_MONITORING = False  # Set True to enable timing warnings
+
+# =============================================================================
+# Button Press Handlers Initialization
+# =============================================================================
+
+def _create_button_press_callbacks():
+    """Create callbacks dict for ButtonPressHandler instances."""
+    return {
+        "send_action": _send_action_from_cfg,
+        "set_button_state": set_button_state,
+        "deselect_group": _deselect_group,
+        "handle_bank_switch": handle_bank_switch,
+        "record_tap_tempo": record_tap_tempo,
+        "has_long_press": _has_long_press_actions,
+        "get_action_cfg": _get_effective_action_cfg,
+    }
+
+# Note: ButtonPressHandler instances will be created after all helper functions are defined
+# See initialization after handle_bank_switch() function
+button_press_handlers = []  # Populated later in initialization
 
 def record_tap_tempo(idx, now):
     """Record a tap for button index `idx` (0-based) at monotonic time `now`.
@@ -754,21 +786,21 @@ def record_tap_tempo(idx, now):
         blink_rate_ms[idx] = ms
         # Extend the active window for this tap so blinking is visible
         tap_active_until[idx] = now + (blink_rate_ms[idx] / 1000.0) * TAP_ACTIVE_WINDOW_MULTIPLIER
-        
+
         # Calculate and display BPM on screen
         bpm = 60_000 // ms
         print(f"[TAP] Button {idx+1} tempo set to {ms} ms ({bpm} BPM)")
-        
+
         # Update display with BPM info
         btn_config = buttons[idx]
         btn_label = btn_config.get("label", str(idx + 1))
         set_label_text(button_name_label, f"{bpm} BPM")
         set_label_text(status_label, btn_label)
-        
+
         # Set timeout to return to selected button display after 3 seconds
         global label_timeout_return_to_select
         label_timeout_return_to_select = now + LABEL_RETURN_TIMEOUT_SEC
-        
+
     except (ZeroDivisionError, ValueError) as e:
         print(f"Tap tempo calculation error for button {idx}: {e}")
     except Exception as e:
@@ -949,6 +981,15 @@ def arm_label_return_timeout(btn_config=None):
     label_timeout_return_to_select = display_handlers.arm_label_return_timeout(btn_config)
 
 
+def set_label_timeout(timeout):
+    """Set the label return timeout to a specific value.
+    
+    Used by ActionDispatcher for conditional label timeouts.
+    """
+    global label_timeout_return_to_select
+    label_timeout_return_to_select = timeout
+
+
 def find_selected_button():
     """Find the currently selected button (button with select_group and state=True).
 
@@ -1037,20 +1078,6 @@ def _has_long_press_actions(btn_config):
     return False
 
 
-class _SnapState:
-    """Lightweight stand-in for ButtonState used by conditional evaluation.
-
-    Holds a snapshot of a button's on/off state captured at press-down time
-    so the conditional evaluator sees pre-press state.
-    """
-    __slots__ = ('state', 'current_keytime')
-    def __init__(self, st=False):
-        self.state = st
-        self.current_keytime = 1
-    def get_keytime(self):
-        return self.current_keytime
-
-
 def _send_tap_midi_fast(action_cfg, btn_num, idx):
     """Ultra-low-latency tap tempo MIDI send: no prints, no delays, no display updates.
 
@@ -1070,7 +1097,7 @@ def _send_tap_midi_fast(action_cfg, btn_num, idx):
     Every microsecond counts for tempo accuracy.
     """
     global pc_values
-    
+
     if not action_cfg:
         return
 
@@ -1150,6 +1177,9 @@ def _send_tap_midi_fast(action_cfg, btn_num, idx):
 def _send_action_from_cfg(action_cfg, btn_num, idx, action_name=None, skip_label_update=False):
     """Send MIDI from action config (single dict or list of dicts).
 
+    Thin wrapper that delegates to ActionDispatcher for the actual implementation.
+    Kept for backward compatibility with existing call sites.
+
     Args:
         action_cfg: Single command dict or list of command dicts
         btn_num: 1-indexed button number
@@ -1162,223 +1192,9 @@ def _send_action_from_cfg(action_cfg, btn_num, idx, action_name=None, skip_label
     - Single command: {"type":"cc","cc":20,"value":127,"channel":0}
     - Multiple commands: [{"type":"cc",...}, {"type":"pc",...}]
 
-    Command types: cc, note, pc, pc_inc, pc_dec
+    Command types: cc, note, pc, pc_inc, pc_dec, conditional
     """
-    global pc_values
-    
-    if not action_cfg:
-        return
-
-    # Normalize to list
-    if isinstance(action_cfg, dict):
-        commands = [action_cfg]
-    elif isinstance(action_cfg, list):
-        commands = action_cfg
-    else:
-        print(f"[WARN] Invalid action_cfg type (button {btn_num}): {type(action_cfg)}")
-        return
-
-    # Display button name in center (large font)
-    btn_config = buttons[idx] if idx < len(buttons) else {}
-
-    # Skip label update if we're inside a conditional branch
-    # (the conditional handler has already set the appropriate label)
-    if not skip_label_update:
-        print(f"[LABEL] Setting label for action={action_name}, skip={skip_label_update}")
-        # For long_press actions: only update label if long_press_label is configured
-        # Otherwise, keep the current display (likely showing the selected button)
-        if action_name == "long_press":
-            if "long_press_label" in btn_config:
-                # Long press label configured - show it
-                label_text = btn_config.get("long_press_label")
-                print(f"[LABEL] Setting long_press_label: '{label_text}'")
-                set_label_text(button_name_label, label_text)
-
-                # Check if label should persist or timeout
-                persist = btn_config.get("long_press_label_persist", True)
-                if not persist:
-                    # Override select_group logic: force timeout even for select buttons
-                    global label_timeout_return_to_select
-                    label_timeout_return_to_select = time.monotonic() + LABEL_RETURN_TIMEOUT_SEC
-                else:
-                    # Use normal logic (select buttons stay, others timeout)
-                    arm_label_return_timeout(btn_config)
-            else:
-                # No long_press_label configured - don't change the display
-                # Keep showing whatever was there (likely the selected button's label)
-                print("[LABEL] No long_press_label configured, keeping current display")
-                pass
-        else:
-            # Normal press/release action - always show button label (with per-state override if applicable)
-            state_cfg = get_button_state_config(btn_config, button_states[idx].get_keytime())
-            label_text = state_cfg.get("label", str(btn_num))
-            print(f"[LABEL] Setting button label: '{label_text}'")
-            set_label_text(button_name_label, label_text)
-            arm_label_return_timeout(btn_config)
-    else:
-        print("[LABEL] Skipping label update (skip_label_update=True)")
-
-    # Track if any PC command executed (for LED flash feedback)
-    pc_command_sent = False
-
-    # Execute each command in sequence
-    for cmd_idx, cmd in enumerate(commands):
-        if not isinstance(cmd, dict):
-            print(f"[WARN] Invalid command in action (button {btn_num}): {cmd}")
-            continue
-
-        # Small delay between commands for MIDI buffer management (MIDI Thru chains)
-        # Skip delay before first command for immediate response
-        if cmd_idx > 0:
-            time.sleep(0.002)  # 2ms between commands
-
-        msg_type = cmd.get("type", "cc")
-        channel = cmd.get("channel", 0)
-
-        # Handle conditional commands (if/then/else logic)
-        if msg_type == "conditional":
-            print(f"[CONDITIONAL] Raw cmd dict keys: {list(cmd.keys())}")
-            print(f"[CONDITIONAL] Full cmd dict: {cmd}")
-            condition = cmd.get("if")
-            then_commands = cmd.get("then", [])
-            else_commands = cmd.get("else", [])
-
-            if not condition:
-                print(f"[WARN] Conditional command missing 'if' condition (button {btn_num})")
-                continue
-
-            # Prepare evaluator inputs
-            exp_vals = {}
-            if HAS_EXPRESSION:
-                exp_vals['exp1'] = exp1_last
-                exp_vals['exp2'] = exp2_last
-            else:
-                exp_vals['exp1'] = 0
-                exp_vals['exp2'] = 0
-
-            enc_val = encoder_value if HAS_ENCODER else 64
-
-            # Use snapshot for button_state conditions when available
-            use_snapshot = (condition.get('type') == 'button_state' and
-                           0 <= idx < len(state_at_press) and state_at_press[idx] is not None)
-
-            if use_snapshot:
-                snap_states = []
-                snap = state_at_press[idx]
-                for si in range(len(button_states)):
-                    s = _SnapState(snap['states'][si])
-                    s.current_keytime = snap['keytimes'][si]
-                    snap_states.append(s)
-            else:
-                snap_states = button_states
-
-            evaluator = ConditionEvaluator(
-                button_states=snap_states,
-                received_cc_values=received_cc_values,
-                encoder_value=enc_val,
-                expression_values=exp_vals,
-            )
-
-            # Evaluate condition
-            condition_result = evaluator.evaluate(condition)
-
-            # Get labels for conditional branches (optional)
-            then_label = cmd.get("then_label")
-            else_label = cmd.get("else_label")
-            # Check if conditional labels should persist or timeout
-            conditional_persist = btn_config.get("conditional_label_persist", False)
-
-            print(f"[CONDITIONAL] then_label={then_label}, else_label={else_label}, persist={conditional_persist}")
-
-            # Execute appropriate branch
-            if condition_result:
-                print(f"[CONDITIONAL] Condition TRUE (button {btn_num}), executing THEN branch with {len(then_commands)} command(s)")
-                if then_label:
-                    print(f"[CONDITIONAL] Setting THEN label: '{then_label}'")
-                    set_label_text(button_name_label, then_label)
-                    # Only arm timeout if persist is disabled
-                    if not conditional_persist:
-                        arm_label_return_timeout(btn_config)
-                else:
-                    print("[CONDITIONAL] No THEN label configured")
-                _send_action_from_cfg(then_commands, btn_num, idx, action_name, skip_label_update=True)
-            else:
-                print(f"[CONDITIONAL] Condition FALSE (button {btn_num}), executing ELSE branch with {len(else_commands)} command(s)")
-                if else_label:
-                    print(f"[CONDITIONAL] Setting ELSE label: '{else_label}'")
-                    set_label_text(button_name_label, else_label)
-                    # Only arm timeout if persist is disabled
-                    if not conditional_persist:
-                        arm_label_return_timeout(btn_config)
-                else:
-                    print("[CONDITIONAL] No ELSE label configured")
-                _send_action_from_cfg(else_commands, btn_num, idx, action_name, skip_label_update=True)
-
-            # Skip normal MIDI command processing for conditionals
-            continue
-
-        try:
-            if msg_type == "cc":
-                cc = cmd.get("cc", 20 + idx)
-                val = cmd.get("value", cmd.get("cc_on", 127))
-                # Reuse message object for performance (avoid allocation)
-                _midi_cc_msg.control = cc
-                _midi_cc_msg.value = val
-                send_midi_message(_midi_cc_msg, channel=channel)
-                print(f"[MIDI TX] Ch{channel+1} CC{cc}={val} (switch {btn_num})")
-                set_label_text(status_label, f"TX CC{cc}={val}")
-
-            elif msg_type == "note":
-                note = cmd.get("note", 60)
-                vel = cmd.get("velocity", cmd.get("velocity_on", 127))
-                # Reuse message object for performance (avoid allocation)
-                _midi_note_on_msg.note = note
-                _midi_note_on_msg.velocity = vel
-                send_midi_message(_midi_note_on_msg, channel=channel)
-                print(f"[MIDI TX] Ch{channel+1} NoteOn{note} vel{vel} (switch {btn_num})")
-                set_label_text(status_label, f"TX Note{note}")
-
-            elif msg_type == "pc":
-                program = cmd.get("program", 0)
-                # Reuse message object for performance (avoid allocation)
-                _midi_pc_msg.patch = program
-                send_midi_message(_midi_pc_msg, channel=channel)
-                print(f"[MIDI TX] Ch{channel+1} PC{program} (switch {btn_num})")
-                set_label_text(status_label, f"TX PC{program}")
-                pc_command_sent = True
-
-            elif msg_type == "pc_inc":
-                step = cmd.get("pc_step", 1)
-                pc_values[channel] = clamp_pc_value(pc_values[channel] + step)
-                # Reuse message object for performance (avoid allocation)
-                _midi_pc_msg.patch = pc_values[channel]
-                send_midi_message(_midi_pc_msg, channel=channel)
-                print(f"[MIDI TX] Ch{channel+1} PC{pc_values[channel]} +{step} (switch {btn_num})")
-                set_label_text(status_label, f"TX PC{pc_values[channel]}")
-                pc_command_sent = True
-
-            elif msg_type == "pc_dec":
-                step = cmd.get("pc_step", 1)
-                pc_values[channel] = clamp_pc_value(pc_values[channel] - step)
-                # Reuse message object for performance (avoid allocation)
-                _midi_pc_msg.patch = pc_values[channel]
-                send_midi_message(_midi_pc_msg, channel=channel)
-                print(f"[MIDI TX] Ch{channel+1} PC{pc_values[channel]} -{step} (switch {btn_num})")
-                set_label_text(status_label, f"TX PC{pc_values[channel]}")
-                pc_command_sent = True
-
-            else:
-                print(f"[WARN] Unknown command type '{msg_type}' (button {btn_num})")
-
-        except Exception as e:
-            print(f"[ERROR] Failed to send command (button {btn_num}): {e}")
-            # Continue to next command
-            continue
-
-    # Flash LED once if any PC command was sent in this action
-    # BUT skip flash if long_press is active - preserve long_press_color instead
-    if pc_command_sent and action_name != "long_press":
-        flash_pc_button(btn_num)
+    action_dispatcher.send_action(action_cfg, btn_num, idx, action_name, skip_label_update)
 
 
 def set_button_state(switch_idx, on):
@@ -1489,22 +1305,22 @@ def handle_midi():
 
     Checks both USB and TRS/serial MIDI for incoming messages (like Helmut's
     original firmware). Some pedals connected via TRS need bidirectional comms.
-    
+
     Processes up to MAX_MIDI_MESSAGES_PER_LOOP messages per loop iteration to
     prevent MIDI flooding from starving other operations (button scanning,
     display updates). Any remaining messages will be processed in next iteration.
-    
+
     During the startup grace period, incoming messages are FULLY DRAINED from
     buffers but NOT processed. This prevents external devices (e.g. Quad Cortex)
     from overriding default_selected button state with their power-on MIDI burst.
-    
+
     After grace period, process up to MAX_MIDI_MESSAGES_PER_LOOP per iteration
     for live performance reliability - even during scene changes with 100+ CC
     messages, buttons remain responsive.
     """
     # Check if we're still in the startup grace period
     in_grace_period = (time.monotonic() - startup_time_monotonic) < STARTUP_MIDI_GRACE_PERIOD_SEC
-    
+
     if in_grace_period:
         # During grace period: fully drain all messages without processing
         # (no per-loop limit - must drain entire buffer to prevent delayed bursts)
@@ -1513,7 +1329,7 @@ def handle_midi():
             if msg is None:
                 break
             # Message discarded - not processed during grace period
-        
+
         while True:
             msg = midi_trs.receive()
             if msg is None:
@@ -1522,7 +1338,7 @@ def handle_midi():
     else:
         # After grace period: process up to MAX_MIDI_MESSAGES_PER_LOOP per iteration
         messages_processed = 0
-        
+
         # Process USB MIDI (up to limit)
         while messages_processed < MAX_MIDI_MESSAGES_PER_LOOP:
             msg = midi_usb.receive()
@@ -1603,6 +1419,16 @@ def handle_bank_switch(target_bank_idx=None):
     label_timeout_return_to_select = time.monotonic() + 2.0
 
     print(f"[BANK] Switched to bank {target_bank_idx + 1}: {bank_name}")
+    
+    # Update handler references to use new bank's configs/states
+    # This ensures ActionDispatcher, ButtonPressHandlers use current bank
+    device_state.button_states = button_states
+    action_dispatcher.buttons = buttons
+    
+    # Reinitialize button press handlers with new bank's button configs
+    global button_press_handlers
+    button_press_handlers = _initialize_button_press_handlers()
+    
     return True
 
 
@@ -1623,7 +1449,7 @@ def _process_incoming_midi(msg):
     value-based scene switching (e.g., Quad Cortex: CC43=0, CC43=2, CC43=4 for scenes).
     """
     global pc_values
-    
+
     if not msg:
         return
 
@@ -1796,17 +1622,43 @@ def _deselect_group(group_name, keep_idx):
                 print(f"[WARN] Failed to deselect sibling button {j+1} in group '{group_name}': {e}")
 
 
+# Initialize ButtonPressHandler instances (one per button)
+# Must be placed after all callback functions are defined
+def _initialize_button_press_handlers():
+    """Initialize ButtonPressHandler for each button.
+
+    Returns list of handlers (one per button).
+    """
+    # Use the global device_state instance directly (no wrapper needed)
+    handlers = []
+    callbacks = _create_button_press_callbacks()
+
+    for idx in range(BUTTON_COUNT):
+        btn_config = buttons[idx] if idx < len(buttons) else {}
+
+        handler = ButtonPressHandler(
+            button_index=idx,
+            config=btn_config,
+            state=device_state,  # Pass DeviceState instance directly
+            callbacks=callbacks
+        )
+        handlers.append(handler)
+
+    return handlers
+
+
+# Initialize handlers - will be populated after button_states are created
+# Actual initialization happens in main setup code after button_states exist
+# button_press_handlers = _initialize_button_press_handlers()  # Called after button_states initialization
+
+
 def handle_switches():
-    """Handle footswitch presses using event-based dispatch.
+    """Handle footswitch presses using ButtonPressHandler state machine.
 
-    Refactored to use the new multi-command event system:
-    - "press" event: dispatched when button is pressed
-    - "release" event: dispatched when button is released (short press)
-    - "long_press" event: dispatched when hold threshold is exceeded
-    - "long_release" event: dispatched when button released after long press
-
-    State management (toggle, momentary, keytimes, select_group) is handled
-    here, while MIDI dispatch is delegated to _send_action_from_cfg().
+    Refactored to use ButtonPressHandler for cleaner state management:
+    - Uses early returns to reduce nesting
+    - Delegates state transitions to ButtonPressHandler
+    - Maintains same behavior as previous implementation
     """
     global led_dirty
     # STD10: index 0 is encoder push, 1-10 are footswitches
@@ -1821,322 +1673,37 @@ def handle_switches():
         # Convert to 1-indexed button number and index
         btn_num = i if HAS_ENCODER else i + 1
         idx = btn_num - 1
+        handler = button_press_handlers[idx]
         btn_state = button_states[idx]
-        btn_config = buttons[idx] if idx < len(buttons) else {"cc": 20 + idx}
 
-        mode = btn_config.get("mode", "toggle")
-
-        # Check for long-press configuration (button-level or per-state)
-        long_enabled = _has_long_press_actions(btn_config)
-
-        # --- Handle edge events ---
+        # Handle button state changes (press/release)
         if changed:
             # Reset idle timeout on any button activity
             reset_activity_timer()
+
             if pressed:
-                # PRESSED: Initialize press timing
-                if not press_start_times[idx]:
-                    press_start_times[idx] = now
-                    long_press_triggered[idx] = False
-                    short_action_executed[idx] = False
-                    # Capture snapshot of states and keytimes at the moment of press
-                    state_at_press[idx] = {
-                        'states': [button_states[si].state for si in range(len(button_states))],
-                        'keytimes': [button_states[si].current_keytime for si in range(len(button_states))],
-                    }
+                # BUTTON PRESSED
+                # Check for double-press first
+                if handler.check_double_press(now):
+                    # Double-press detected - handler already dispatched action
+                    # Skip normal press handling
+                    continue
 
-                # Check for double-press
-                double_press_cfg = btn_config.get("double_press")
-                if double_press_cfg:
-                    # Get timeout for this button (button-level override or global default)
-                    timeout_ms = btn_config.get("double_press_timeout_ms", DOUBLE_PRESS_TIMEOUT_MS)
-                    timeout_sec = timeout_ms / 1000.0
-                    last_release = last_release_times[idx]
-                    
-                    if last_release > 0 and (now - last_release) <= timeout_sec:
-                        # Double-press detected!
-                        print(f"[DOUBLE-PRESS] Button {btn_num} double-pressed (interval: {(now - last_release)*1000:.0f}ms)")
-                        _send_action_from_cfg(double_press_cfg, btn_num, idx, "double_press")
-                        short_action_executed[idx] = True
-                        # Mark as consumed so the release doesn't record a timestamp
-                        double_press_consumed[idx] = True
-                        last_release_times[idx] = 0.0
-                        # Skip normal press handling - double-press takes priority
-                        continue
+                # Check for bank switching button (early return if handled)
+                if handler.should_skip_for_bank_switch(bank_manager, bank_switch_config, banks):
+                    continue
 
-                # Check for bank switching button
-                if bank_manager and bank_switch_config and len(banks) > 0:
-                    method = bank_switch_config.get("method", "button")
-                    if method == "button":
-                        # Legacy single button cycling
-                        bank_btn = bank_switch_config.get("button")
-                        # New dual button mode
-                        bank_next = bank_switch_config.get("button_next")
-                        bank_prev = bank_switch_config.get("button_prev")
-
-                        if bank_next and btn_num == bank_next:
-                            # Bank up button pressed - compute target and switch once
-                            target_idx = (bank_manager.current_bank_index + 1) % len(banks)
-                            handle_bank_switch(target_idx)
-                            continue
-                        elif bank_prev and btn_num == bank_prev:
-                            # Bank down button pressed - compute target and switch once
-                            target_idx = (bank_manager.current_bank_index - 1) % len(banks)
-                            handle_bank_switch(target_idx)
-                            continue
-                        elif bank_btn and btn_num == bank_btn and not bank_next and not bank_prev:
-                            # Legacy mode: single button cycles forward
-                            target_idx = (bank_manager.current_bank_index + 1) % len(banks)
-                            handle_bank_switch(target_idx)
-                            continue
-
-                # Handle tap tempo recording
-                if mode == "tap":
-                    # CRITICAL PATH: Send MIDI first for minimal latency, then do bookkeeping
-                    btn_state.advance_keytime()
-                    press_cfg = _get_effective_action_cfg(btn_config, "press", btn_state.get_keytime())
-                    if press_cfg:
-                        _send_tap_midi_fast(press_cfg, btn_num, idx)
-                        short_action_executed[idx] = True
-
-                    # Bookkeeping after MIDI (doesn't affect timing)
-                    record_tap_tempo(idx, now)
-                    # Start blinking for tap mode - dynamic flash at 20% of tempo
-                    blink_state[idx] = True
-                    if blink_rate_ms[idx] > 0:
-                        beat_interval = blink_rate_ms[idx] / 1000.0
-                        flash_duration = max(0.05, min(0.2, beat_interval * 0.2))
-                        blink_next_toggle[idx] = now + flash_duration
-                    else:
-                        blink_next_toggle[idx] = now + 0.1  # Fallback for first tap
-
-                    # Skip normal press dispatch below (already sent via fast path)
-                    # But allow long-press logic to run by not using continue here
-
-                # Dispatch press event
-                if not long_enabled and mode != "tap":
-                    # No long-press: execute press action immediately
-                    if mode in ("toggle", "normal", "select"):
-                        # Advance keytime for toggle modes
-                        btn_state.advance_keytime()
-                        # For toggle/select: update state and LED, dispatch appropriate event
-                        if mode in ("toggle", "normal", "select"):
-                            # For buttons with select_group: pressing when already ON keeps it ON (radio button behavior)
-                            # For toggle/normal mode without select_group: flip state
-                            # For select mode: always turns ON
-                            if btn_state.keytimes > 1:
-                                new_state = True
-                            elif mode == "select":
-                                new_state = True
-                            elif btn_config.get("select_group") and btn_state.state:
-                                # Radio button behavior: if already selected, stay selected
-                                new_state = True
-                            elif mode in ("toggle", "normal"):
-                                new_state = not btn_state.state
-                            else:
-                                new_state = True
-
-                            btn_state.state = new_state
-                            set_button_state(btn_num, new_state)
-                            # Handle select_group exclusivity (applies to both toggle and select modes)
-                            if new_state:
-                                sg = btn_config.get("select_group")
-                                if sg:
-                                    _deselect_group(sg, idx)
-                            # Dispatch press (ON) or release (OFF) based on new state
-                            action_cfg = _get_effective_action_cfg(btn_config, "press" if new_state else "release", btn_state.get_keytime())
-                            # Simplified toggle: synthesize CC on/off if no explicit action defined
-                            if action_cfg is None and mode == "toggle":
-                                action_cfg = _make_simple_toggle_cmd(btn_config, new_state, idx)
-                            if action_cfg:
-                                _send_action_from_cfg(action_cfg, btn_num, idx, "press" if new_state else "release")
-                                short_action_executed[idx] = True
-                    else:
-                        # Momentary or other modes: dispatch press event
-                        press_cfg = _get_effective_action_cfg(btn_config, "press", btn_state.get_keytime())
-                        if press_cfg:
-                            _send_action_from_cfg(press_cfg, btn_num, idx, "press")
-                            short_action_executed[idx] = True
-
-                    # For momentary mode, also set LED on
-                    if mode == "momentary":
-                        set_button_state(btn_num, True)
-
-                else:
-                    # Long-press configured: for momentary, dispatch press immediately
-                    # For toggle modes, defer until we know if it's short or long
-                    if mode == "momentary":
-                        btn_state.advance_keytime()
-                        press_cfg = _get_effective_action_cfg(btn_config, "press", btn_state.get_keytime())
-                        if press_cfg:
-                            _send_action_from_cfg(press_cfg, btn_num, idx, "press")
-                        set_button_state(btn_num, True)
+                # Delegate press handling to ButtonPressHandler
+                handler.on_press(now, btn_state)
 
             else:
-                # RELEASED: Dispatch appropriate release event
-                press_start_times[idx] = 0.0
-                was_long = long_press_triggered[idx]
-                long_press_triggered[idx] = False
-                
-                # Record release time for double-press detection unless this
-                # press/release cycle already consumed a double-press. In that
-                # case, leave the timestamp cleared so a rapid third press does
-                # not chain into another immediate double-press detection.
-                if double_press_consumed[idx]:
-                    double_press_consumed[idx] = False
-                else:
-                    last_release_times[idx] = now
+                # BUTTON RELEASED
+                # Delegate release handling to ButtonPressHandler
+                handler.on_release(now, btn_state)
 
-                if was_long:
-                    # Long-press completed: dispatch long_release if configured
-                    long_release_cfg = _get_effective_action_cfg(btn_config, "long_release", btn_state.get_keytime())
-                    if long_release_cfg:
-                        _send_action_from_cfg(long_release_cfg, btn_num, idx, "long_release")
-
-                    # Restore button LED to match its actual state
-                    if mode == "momentary":
-                        # Momentary: always turn LED off on release
-                        set_button_state(btn_num, False)
-                    else:
-                        # Toggle/select: restore LED to match button's actual state
-                        persist = btn_config.get("long_press_label_persist", True)
-
-                        if persist and btn_state.state and "long_press_color" in btn_config:
-                            # Long press with persist=true and button is ON: keep long_press_color
-                            long_press_color_name = btn_config["long_press_color"]
-                            long_press_rgb = get_color(long_press_color_name)
-                            led_idx = switch_to_led(btn_num)
-                            if led_idx is not None:
-                                base = led_idx * 3
-                                for j in range(3):
-                                    if base + j < LED_COUNT:
-                                        pixels[base + j] = long_press_rgb
-                                led_dirty = True
-                        else:
-                            # Normal case: restore to regular state color
-                            set_button_state(btn_num, btn_state.state)
-                else:
-                    # Short press: handle deferred actions
-                    if long_enabled:
-                        # Deferred press action (for toggle modes with long-press configured)
-                        if mode in ("toggle", "normal", "select", "tap") and not short_action_executed[idx]:
-                            btn_state.advance_keytime()
-                            if mode in ("toggle", "normal", "select"):
-                                # For buttons with select_group: pressing when already ON keeps it ON (radio button behavior)
-                                # For toggle/normal mode without select_group: flip state
-                                # For select mode: always turns ON
-                                if btn_state.keytimes > 1:
-                                    new_state = True
-                                elif mode == "select":
-                                    new_state = True
-                                elif btn_config.get("select_group") and btn_state.state:
-                                    # Radio button behavior: if already selected, stay selected
-                                    new_state = True
-                                elif mode in ("toggle", "normal"):
-                                    new_state = not btn_state.state
-                                else:
-                                    new_state = True
-
-                                btn_state.state = new_state
-                                set_button_state(btn_num, new_state)
-                                # Handle select_group exclusivity (applies to both toggle and select modes)
-                                if new_state:
-                                    sg = btn_config.get("select_group")
-                                    if sg:
-                                        _deselect_group(sg, idx)
-                                # Dispatch press (ON) or release (OFF) based on new state
-                                action_cfg = _get_effective_action_cfg(btn_config, "press" if new_state else "release", btn_state.get_keytime())
-                                # Simplified toggle: synthesize CC on/off if no explicit action defined
-                                if action_cfg is None and mode == "toggle":
-                                    action_cfg = _make_simple_toggle_cmd(btn_config, new_state, idx)
-                                if action_cfg:
-                                    _send_action_from_cfg(action_cfg, btn_num, idx, "press" if new_state else "release")
-                                    short_action_executed[idx] = True
-                            else:
-                                # Tap mode: always dispatch press
-                                press_cfg = _get_effective_action_cfg(btn_config, "press", btn_state.get_keytime())
-                                if press_cfg:
-                                    _send_action_from_cfg(press_cfg, btn_num, idx, "press")
-                                    short_action_executed[idx] = True
-
-                    # Dispatch release event (momentary mode only)
-                    # For toggle/select/normal modes, release is dispatched during state change
-                    if mode == "momentary":
-                        release_cfg = _get_effective_action_cfg(btn_config, "release", btn_state.get_keytime())
-                        if release_cfg:
-                            _send_action_from_cfg(release_cfg, btn_num, idx, "release")
-                        # Set LED off
-                        set_button_state(btn_num, False)
-
-        # --- Handle held buttons for long-press threshold crossing ---
-        if pressed and long_enabled and not long_press_triggered[idx] and press_start_times[idx]:
-            # Get effective long_press config for current keytime (may be per-state override)
-            current_keytime = btn_state.get_keytime()
-            effective_long_press = _get_effective_action_cfg(btn_config, "long_press", current_keytime)
-
-            # snapshot captured at press-down; no debug log here
-
-            # Determine threshold (ms) from effective config
-            threshold_ms = LONG_PRESS_THRESHOLD_MS
-            if effective_long_press and isinstance(effective_long_press, dict):
-                threshold_ms = effective_long_press.get("threshold_ms", threshold_ms)
-            elif isinstance(effective_long_press, list) and len(effective_long_press) > 0:
-                # If it's an array, check first command for threshold
-                first_cmd = effective_long_press[0]
-                if isinstance(first_cmd, dict):
-                    threshold_ms = first_cmd.get("threshold_ms", threshold_ms)
-
-            if (now - press_start_times[idx]) >= (threshold_ms / 1000.0):
-                # Trigger long-press action
-                long_press_triggered[idx] = True
-
-                # Check if long_press_label_persist means this acts like a state change
-                persist = btn_config.get("long_press_label_persist", True)
-
-                if persist and mode in ("toggle", "normal", "select"):
-                    # Long press with persist acts like a button press - update state
-                    # Turn this button ON and deselect others in same select_group
-                    btn_state.state = True
-
-                    # Apply long_press_color if configured, otherwise use normal ON color
-                    if "long_press_color" in btn_config:
-                        # Use long_press_color during hold
-                        long_press_color_name = btn_config["long_press_color"]
-                        long_press_rgb = get_color(long_press_color_name)
-                        led_idx = switch_to_led(btn_num)
-                        if led_idx is not None:
-                            base = led_idx * 3
-                            for j in range(3):
-                                if base + j < LED_COUNT:
-                                    pixels[base + j] = long_press_rgb
-                            led_dirty = True
-                    else:
-                        # No long_press_color - use normal ON state
-                        set_button_state(btn_num, True)
-
-                    # Handle select_group exclusivity
-                    sg = btn_config.get("select_group")
-                    if sg:
-                        _deselect_group(sg, idx)
-                else:
-                    # Long press without persist - alternate action, no state change
-                    # Apply long_press_color if configured (temporary visual feedback only)
-                    if "long_press_color" in btn_config:
-                        long_press_color_name = btn_config["long_press_color"]
-                        long_press_rgb = get_color(long_press_color_name)
-                        led_idx = switch_to_led(btn_num)
-                        if led_idx is not None:
-                            base = led_idx * 3
-                            for j in range(3):
-                                if base + j < LED_COUNT:
-                                    pixels[base + j] = long_press_rgb
-                            led_dirty = True
-
-                short_action_executed[idx] = True
-
-                # Send long_press MIDI action
-                if effective_long_press:
-                    _send_action_from_cfg(effective_long_press, btn_num, idx, "long_press")
+        # Check for long-press threshold on held buttons (runs every iteration)
+        if pressed and handler.current_state == ButtonPressState.PRESSED:
+            handler.check_long_press(now, btn_state)
 
 
 def handle_encoder_button():
@@ -2369,12 +1936,56 @@ def handle_serial_commands():
 
 
 # =============================================================================
+# Initialize Button Press Handlers
+# =============================================================================
+
+# Now that all callback functions are defined, initialize ButtonPressHandler instances
+# Note: This was declared as an empty list earlier but needs actual initialization here
+button_press_handlers = _initialize_button_press_handlers()
+print(f"[INIT] Initialized {len(button_press_handlers)} ButtonPressHandler instances")
+
+# Initialize ActionDispatcher for MIDI command execution
+action_dispatcher = ActionDispatcher(
+    device_state=device_state,
+    buttons=buttons,
+    callbacks={
+        "send_midi_message": send_midi_message,
+        "set_label_text": set_label_text,
+        "arm_label_return_timeout": arm_label_return_timeout,
+        "set_label_timeout": set_label_timeout,
+        "clamp_pc_value": clamp_pc_value,
+        "flash_pc_button": flash_pc_button,
+        "get_button_state_config": get_button_state_config,
+    },
+    display_refs={
+        "button_name_label": button_name_label,
+        "status_label": status_label,
+    },
+    midi_msgs={
+        "cc": _midi_cc_msg,
+        "note_on": _midi_note_on_msg,
+        "note_off": _midi_note_off_msg,
+        "pc": _midi_pc_msg,
+    },
+    feature_flags={
+        "HAS_EXPRESSION": HAS_EXPRESSION,
+        "HAS_ENCODER": HAS_ENCODER,
+    },
+    constants={
+        "LABEL_RETURN_TIMEOUT_SEC": LABEL_RETURN_TIMEOUT_SEC,
+        "INTER_COMMAND_DELAY_SEC": 0.002,  # 2ms for MIDI buffer management
+    }
+)
+print("[INIT] Initialized ActionDispatcher for MIDI command execution")
+
+
+# =============================================================================
 # Main Loop
 # =============================================================================
 
 while True:
     loop_start = time.monotonic() if ENABLE_PERFORMANCE_MONITORING else 0
-    
+
     handle_serial_commands()
     handle_midi()
     handle_switches()
@@ -2387,18 +1998,18 @@ while True:
         handle_encoder()
     if HAS_EXPRESSION:
         handle_expression()
-    
+
     # Wake from splash screen (deferred until after MIDI processing to avoid input lag)
     if needs_wake_from_splash:
         is_showing_splash = False
         needs_wake_from_splash = False
         display.show(main_group)
-    
+
     # Batch LED update: only call pixels.show() once per loop if LEDs changed
     if led_dirty:
         pixels.show()
         led_dirty = False
-    
+
     # Optional performance monitoring
     if ENABLE_PERFORMANCE_MONITORING:
         loop_time_ms = (time.monotonic() - loop_start) * 1000

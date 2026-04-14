@@ -13,6 +13,7 @@ class Switch:
     """
 
     def __init__(self, pin, digitalio_module=None):
+        # type: (object, object) -> None
         """Initialize switch on given pin.
         
         Args:
@@ -29,10 +30,12 @@ class Switch:
 
     @property
     def pressed(self):
+        # type: () -> bool
         """Return True if switch is currently pressed."""
         return not self.io.value
 
     def changed(self):
+        # type: () -> tuple
         """Check if switch state changed since last call.
         
         Returns:
@@ -52,6 +55,7 @@ class ButtonState:
     """
     
     def __init__(self, cc, mode="toggle", initial_state=False, keytimes=1):
+        # type: (int, str, bool, int) -> None
         """Initialize button state.
         
         Args:
@@ -68,15 +72,18 @@ class ButtonState:
     
     @property
     def state(self):
+        # type: () -> bool
         """Current on/off state."""
         return self._state
     
     @state.setter
     def state(self, value):
+        # type: (bool) -> None
         """Set state (used by host override)."""
         self._state = bool(value)
     
     def advance_keytime(self):
+        # type: () -> None
         """Advance to next keytime state, cycling back to 1 after max.
 
         No-op when keytimes == 1.
@@ -85,6 +92,7 @@ class ButtonState:
             self.current_keytime = (self.current_keytime % self.keytimes) + 1
 
     def on_press(self):
+        # type: () -> tuple
         """Handle button press.
 
         For keytimes > 1: advances to next keytime state via advance_keytime().
@@ -112,6 +120,7 @@ class ButtonState:
                 return True, self._state, 127 if self._state else 0
     
     def on_release(self):
+        # type: () -> tuple
         """Handle button release.
 
         NOTE: handle_switches() in code.py does NOT call this method — release
@@ -129,6 +138,7 @@ class ButtonState:
             return False, self._state, None
     
     def on_midi_receive(self, value):
+        # type: (int) -> bool
         """Handle incoming MIDI CC value (host override).
         
         Args:
@@ -141,6 +151,7 @@ class ButtonState:
         return self._state
     
     def get_keytime(self):
+        # type: () -> int
         """Get current keytime index (1-indexed).
         
         Returns:
