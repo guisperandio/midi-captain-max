@@ -30,6 +30,9 @@ def test_tap_mode_always_on_and_sends_on_each_press(tmp_path, monkeypatch, firmw
     validated = validate_config(cfg, button_count=fw.BUTTON_COUNT)
     fw.buttons = validated["buttons"]
 
+    # Reinitialize handlers after config change
+    fw.button_press_handlers = fw._initialize_button_press_handlers()
+
     idx = _first_button_index(fw)
     sw = fw.switches[idx]
     btn_num = idx + 1
@@ -44,6 +47,7 @@ def test_tap_mode_always_on_and_sends_on_each_press(tmp_path, monkeypatch, firmw
     monkeypatch.setattr(fw.midi_usb, "send", lambda msg: sent.append(msg))
 
     # Simulate 3 quick press/release cycles
+    # Each cycle: changed=True/pressed=True (press), then changed=True/pressed=False (release)
     seq = [(True, True), (True, False)] * 3
     calls = {"i": 0}
 
