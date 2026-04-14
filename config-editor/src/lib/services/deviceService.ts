@@ -248,6 +248,64 @@ export async function reloadFromDevice() {
 }
 
 /**
+ * Hot reload the device firmware to apply config changes without power cycling
+ * Works by sending a special serial command to trigger a soft reset
+ * Only works in dev mode (requires serial connection)
+ */
+export async function hotReloadDevice() {
+  const device = get(selectedDevice);
+  if (!device) return;
+
+  const configObj = get(config);
+  const devMode = configObj.dev_mode ?? false;
+
+  // Hot reload requires dev mode (serial connection)
+  if (!devMode) {
+    statusMessage.set('Enable Dev Mode to use hot reload');
+    showToast('Enable Dev Mode in Device Settings to use hot reload.', 'error');
+    return;
+  }
+
+  try {
+    statusMessage.set('Triggering device reload...');
+    isReloadingDevice.set(true);
+    
+    await triggerDeviceReload(device.path);
+    
+    // Device will disconnect and reconnect automatically
+    showToast('Device reloading... Config will apply on reconnect.', 'success');
+    
+    // Clear any pending reload timer before starting a new reconnect window
+    if (reloadTimeoutId !== null) {
+      clearTimeout(reloadTimeoutId);
+    }
+    
+    // Clear reload flag after expected reconnect time
+    reloadTimeoutId = setTimeout(() => {
+      isReloadingDevice.set(false);
+      reloadTimeoutId = null;
+    }, 5000);
+    
+    statusMessage.set('Device reloading...');
+  } catch (e: any) {
+    console.warn('[HOT RELOAD] Failed:', e);
+    
+    // Clear reload flag and timer on error
+    isReloadingDevice.set(false);
+    if (reloadTimeoutId !== null) {
+      clearTimeout(reloadTimeoutId);
+      reloadTimeoutId = null;
+    }
+    
+    statusMessage.set('Hot reload failed - try restarting the device manually');
+    showToast(
+      'Hot reload failed. Check that:\n1. Dev Mode is enabled\n2. Device is connected via USB\n3. Or manually restart the device',
+      'error'
+    );
+  }
+}
+
+/**
  * Show instructions for resetting the device
  */
 export async function resetDevice() {

@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { config } from '$lib/formStore';
+  import { formatChannel } from '$lib/utils';
   import type { CommandOrConditional, MidiCommand, MessageType } from '$lib/types';
   import ConditionalCommandBlock from './ConditionalCommandBlock.svelte';
 
@@ -19,6 +21,16 @@
     'type' in command &&
     command.type === 'conditional'
   );
+
+  // Generate channel options with labels
+  // Include "Use Global" option to allow inheriting global channel
+  let channelOptions = $derived([
+    { value: 'global', label: `Use Global (${formatChannel(globalChannel, $config)})` },
+    ...Array.from({ length: 16 }, (_, i) => ({
+      value: i,
+      label: formatChannel(i, $config)
+    }))
+  ]);
 
   function updateMidiField(field: string, value: any) {
     if (!isConditional) {
@@ -100,15 +112,21 @@
         </div>
       {/if}
 
-      <div class="field">
+      <div class="field channel-field">
         <label>Channel</label>
-        <input type="number" min="1" max="16"
-          value={(command as MidiCommand).channel !== undefined ? (command as MidiCommand).channel! + 1 : ''}
-          placeholder={`${globalChannel + 1}`}
-          onblur={(e) => {
-            const val = numVal(e);
-            updateMidiField('channel', val !== undefined ? val - 1 : undefined);
-          }} />
+        <select
+          value={(command as MidiCommand).channel !== undefined ? (command as MidiCommand).channel : 'global'}
+          onchange={(e) => {
+            const rawVal = (e.target as HTMLSelectElement).value;
+            // 'global' means inherit from global_channel (store as undefined)
+            // Any numeric value means explicit channel override
+            updateMidiField('channel', rawVal === 'global' ? undefined : parseInt(rawVal));
+          }}
+        >
+          {#each channelOptions as opt}
+            <option value={opt.value}>{opt.label}</option>
+          {/each}
+        </select>
       </div>
     </div>
 
