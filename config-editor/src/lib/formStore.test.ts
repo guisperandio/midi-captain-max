@@ -229,7 +229,7 @@ describe('formStore', () => {
 			//Legacy fields should be removed if press array exists
 			expect(button).toBeDefined();
 			if (button) {
-				expect(button.message_type).toBeUndefined();
+			expect(button.type).toBeUndefined();
 				expect(button.cc).toBeUndefined();
 				expect(button.cc_on).toBeUndefined();
 				expect(button.cc_off).toBeUndefined();

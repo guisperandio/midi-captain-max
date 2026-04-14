@@ -27,4 +27,4 @@ profile_id?: string,
 /**
  * Action within profile (e.g., 'scene_b', 'snapshot_3')
  */
-action_id?: string, double_press_timeout_ms?: number, message_type: MessageType, mode: ButtonMode, off_mode: OffMode, dim_brightness?: number, channel?: number, cc?: number, cc_on?: number, cc_off?: number, note?: number, velocity_on?: number, velocity_off?: number, program?: number, pc_step?: number, flash_ms?: number, value_on?: number, value_off?: number, default_on?: boolean, keytimes?: number, states?: Array<StateOverride>, select_group?: string, default_selected?: boolean, };
+action_id?: string, double_press_timeout_ms?: number, type: MessageType, mode: ButtonMode, off_mode: OffMode, dim_brightness?: number, channel?: number, cc?: number, cc_on?: number, cc_off?: number, note?: number, velocity_on?: number, velocity_off?: number, program?: number, pc_step?: number, flash_ms?: number, value_on?: number, value_off?: number, default_on?: boolean, keytimes?: number, states?: Array<StateOverride>, select_group?: string, default_selected?: boolean, };

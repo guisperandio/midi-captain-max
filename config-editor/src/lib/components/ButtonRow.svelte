@@ -47,7 +47,7 @@
     stateOpen = newStateOpen;
   });
 
-  let msgType = $derived((button.message_type ?? 'cc') as MessageType);
+  let msgType = $derived((button.type ?? 'cc') as MessageType);
   let isCC = $derived(msgType === 'cc');
   let isNote = $derived(msgType === 'note');
   let isPC = $derived(msgType === 'pc');
@@ -301,7 +301,7 @@
     <label class="field-label">Type:</label>
     <select
       class="select"
-      value={button.message_type ?? 'cc'}
+      value={button.type ?? 'cc'}
       onchange={handleTypeChange}
       disabled={disabled}
     >

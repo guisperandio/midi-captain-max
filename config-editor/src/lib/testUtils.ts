@@ -12,7 +12,7 @@ export function createButtonConfig(overrides?: Partial<ButtonConfig>): ButtonCon
 	const defaults: ButtonConfig = {
 		label: 'BTN 1',
 		color: 'red',
-		message_type: 'cc',
+		type: 'cc',
 		mode: 'toggle',
 		off_mode: 'dim'
 	};

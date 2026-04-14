@@ -5,4 +5,4 @@ import type { Condition } from "./Condition";
 /**
  * Conditional command wrapper for if/then/else logic
  */
-export type ConditionalCommand = { type: string, if: Condition, then: Array<CommandOrConditional>, else: Array<CommandOrConditional> | null, then_label?: string, else_label?: string, };
+export type ConditionalCommand = { type: "conditional", if: Condition, then: Array<CommandOrConditional>, else?: Array<CommandOrConditional>, then_label?: string, else_label?: string, };

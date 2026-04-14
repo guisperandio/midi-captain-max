@@ -122,11 +122,14 @@ pub struct MidiCommand {
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export)]
 pub struct ConditionalCommand {
+    #[ts(rename = "type", type = "\"conditional\"")]
     #[serde(rename = "type")]
     pub command_type: String, // Always "conditional"
+    #[ts(rename = "if")]
     #[serde(rename = "if")]
     pub condition: Condition,
     pub then: Vec<CommandOrConditional>,
+    #[ts(rename = "else", optional)]
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "else")]
     pub else_branch: Option<Vec<CommandOrConditional>>,
@@ -273,6 +276,7 @@ pub struct ButtonConfig {
     pub double_press_timeout_ms: Option<u16>,
 
     // ===== LEGACY: Single-type fields (for backwards compatibility) =====
+    #[ts(rename = "type")]
     #[serde(
         rename = "type",
         default,

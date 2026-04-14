@@ -32,7 +32,7 @@
 
 		// Helper to create legacy command from button config
 		function createLegacyCommand(btnCfg: ButtonConfig, isOn: boolean): MidiCommand | null {
-			const type = btnCfg.message_type ?? 'cc';
+			const type = btnCfg.type ?? 'cc';
 			const channel = btnCfg.channel;
 
 			switch (type) {
@@ -144,7 +144,7 @@
 				} else if (key === 'release' && hasLegacyFields) {
 					// Only show release for toggle/select/normal modes, not for PC types or momentary
 					const mode = btnConfig.mode ?? 'toggle';
-							const type = btnConfig.message_type ?? 'cc';
+							const type = btnConfig.type ?? 'cc';
 					const showRelease = (mode === 'toggle' || mode === 'select' || mode === 'normal') && 
 					                   (type === 'cc' || type === 'note');
 					if (showRelease) {

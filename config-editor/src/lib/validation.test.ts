@@ -326,7 +326,6 @@ describe('validateConfig', () => {
 						then: [
 							{ type: 'cc', cc: 30, value: 127 }
 						],
-						else: null,
 						then_label: 'Active',
 
 					}
@@ -353,7 +352,6 @@ describe('validateConfig', () => {
 						then: [
 							{ type: 'cc', cc: 40, value: 127 }
 						],
-						else: null,
 
 
 					}

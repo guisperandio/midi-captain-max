@@ -48,9 +48,9 @@ export interface StateOverride extends Omit<GeneratedStateOverride, 'press' | 'r
 }
 
 // Augment ButtonConfig with event array fields (skipped in ts-rs due to custom deserializer)
-// Also make message_type, mode, off_mode optional since Rust has defaults via #[serde(default)]
-export interface ButtonConfig extends Omit<GeneratedButtonConfig, 'message_type' | 'mode' | 'off_mode' | 'states'> {
-  message_type?: MessageType;
+// Also make type, mode, off_mode optional since Rust has defaults via #[serde(default)]
+export interface ButtonConfig extends Omit<GeneratedButtonConfig, 'type' | 'mode' | 'off_mode' | 'states'> {
+  type?: MessageType;
   mode?: ButtonMode;
   off_mode?: OffMode;
   press?: CommandOrConditional[];
