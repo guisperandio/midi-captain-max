@@ -506,7 +506,7 @@ function normalizeButton(btn: ButtonConfig): ButtonConfig {
     // Strip event arrays, states, keytimes, and all legacy type-based fields.
     // long_press is kept as an optional advanced escape hatch.
     const {
-      type, cc_on, cc_off, note, velocity_on, velocity_off,
+      message_type, type, cc_on, cc_off, note, velocity_on, velocity_off,
       program, pc_step, flash_ms,
       press, release, long_release, states, keytimes,
       ...rest
@@ -523,7 +523,7 @@ function normalizeButton(btn: ButtonConfig): ButtonConfig {
   // 'normal', 'momentary', 'select', 'tap':
   // Strip legacy single-type fields AND simplified-toggle-only fields.
   const {
-    type, cc, cc_on, cc_off, note, velocity_on, velocity_off,
+    message_type, type, cc, cc_on, cc_off, note, velocity_on, velocity_off,
     program, pc_step, flash_ms,
     value_on, value_off, default_on,
     ...cleanButton
