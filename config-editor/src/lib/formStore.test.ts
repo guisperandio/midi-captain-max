@@ -217,7 +217,7 @@ describe('formStore', () => {
 						flash_ms: 200,
 						// Also has new format
 						press: [
-							{ type: 'cc', cc: 30, value: 127, channel: null, note: null, velocity: null, program: null, pc_step: null, threshold_ms: null }
+							{ type: 'cc', cc: 30, value: 127 }
 						]
 					} as any)
 				]
@@ -229,7 +229,7 @@ describe('formStore', () => {
 			//Legacy fields should be removed if press array exists
 			expect(button).toBeDefined();
 			if (button) {
-				expect(button.type).toBeUndefined();
+				expect(button.message_type).toBeUndefined();
 				expect(button.cc).toBeUndefined();
 				expect(button.cc_on).toBeUndefined();
 				expect(button.cc_off).toBeUndefined();
@@ -270,7 +270,7 @@ describe('formStore', () => {
 					createButtonConfig({
 						keytimes: 3,
 						states: [
-							{ label: 'State 1', cc: 20, cc_on: null, cc_off: null, note: null, velocity_on: null, velocity_off: null, program: null, pc_step: null, color: null, press: null, release: null, long_press: null, long_release: null }
+							{ label: 'State 1', cc: 20 }
 						]
 					})
 				]

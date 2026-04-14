@@ -226,8 +226,8 @@ describe('validateConfig', () => {
 		it('should accept valid multi-command press arrays', () => {
 			const testButton = createButtonConfig({
 				press: [
-					{ type: 'cc', cc: 20, value: 127, channel: null, note: null, velocity: null, program: null, pc_step: null, threshold_ms: null },
-					{ type: 'note', note: 60, velocity: 100, channel: null, cc: null, value: null, program: null, pc_step: null, threshold_ms: null }
+					{ type: 'cc', cc: 20, value: 127 },
+					{ type: 'note', note: 60, velocity: 100 }
 				]
 			});
 			const config = createMidiCaptainConfig(6, {
@@ -240,8 +240,8 @@ describe('validateConfig', () => {
 
 	it('should accept valid multi-command with release arrays', () => {
 			const testButton = createButtonConfig({
-				press: [{ type: 'cc', cc: 20, value: 127, channel: null, note: null, velocity: null, program: null, pc_step: null, threshold_ms: null }],
-				release: [{ type: 'cc', cc: 20, value: 0, channel: null, note: null, velocity: null, program: null, pc_step: null, threshold_ms: null }]
+				press: [{ type: 'cc', cc: 20, value: 127 }],
+				release: [{ type: 'cc', cc: 20, value: 0 }]
 			});
 			const config = createMidiCaptainConfig(6, {
 				device: 'mini6',
@@ -253,7 +253,7 @@ describe('validateConfig', () => {
 
 		it('should accept PC commands in arrays', () => {
 			const testButton = createButtonConfig({
-				press: [{ type: 'pc', program: 5, channel: 0, cc: null, value: null, note: null, velocity: null, pc_step: null, threshold_ms: null }]
+				press: [{ type: 'pc', program: 5, channel: 0 }]
 			});
 			const config = createMidiCaptainConfig(6, {
 				device: 'mini6',
@@ -265,7 +265,7 @@ describe('validateConfig', () => {
 
 		it('should accept PC increment/decrement commands', () => {
 			const testButton = createButtonConfig({
-				press: [{ type: 'pc_inc', pc_step: 1, channel: null, cc: null, value: null, note: null, velocity: null, program: null, threshold_ms: null }]
+				press: [{ type: 'pc_inc', pc_step: 1 }]
 			});
 			const config = createMidiCaptainConfig(6, {
 				device: 'mini6',
@@ -290,10 +290,10 @@ describe('validateConfig', () => {
 								state: 'on'
 							},
 							then: [
-								{ type: 'cc', cc: 20, value: 127, channel: null, note: null, velocity: null, program: null, pc_step: null, threshold_ms: null }
+								{ type: 'cc', cc: 20, value: 127 }
 							],
 							else: [
-								{ type: 'cc', cc: 20, value: 0, channel: null, note: null, velocity: null, program: null, pc_step: null, threshold_ms: null }
+								{ type: 'cc', cc: 20, value: 0 }
 							],
 							then_label: null,
 							else_label: null
@@ -324,7 +324,7 @@ describe('validateConfig', () => {
 							value: 127
 						},
 						then: [
-							{ type: 'cc', cc: 30, value: 127, channel: null, note: null, velocity: null, program: null, pc_step: null, threshold_ms: null }
+							{ type: 'cc', cc: 30, value: 127 }
 						],
 						else: null,
 						then_label: 'Active',
@@ -351,7 +351,7 @@ describe('validateConfig', () => {
 							value: 64
 						},
 						then: [
-							{ type: 'cc', cc: 40, value: 127, channel: null, note: null, velocity: null, program: null, pc_step: null, threshold_ms: null }
+							{ type: 'cc', cc: 40, value: 127 }
 						],
 						else: null,
 						then_label: null,
