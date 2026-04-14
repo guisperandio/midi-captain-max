@@ -514,6 +514,7 @@ else:
 
 # Will be set after config is loaded
 encoder_value = 0
+encoder_slot = None  # Current display slot for encoder (None = not shown)
 encoder_push_state = False  # For toggle mode
 
 # Expression pedals (STD10 only)
@@ -665,6 +666,10 @@ last_release_times = [0.0] * BUTTON_COUNT
 # Default double-press timeout (ms) if not provided in config
 DOUBLE_PRESS_TIMEOUT_MS = config.get("double_press_timeout_ms", DEFAULT_DOUBLE_PRESS_TIMEOUT_MS)
 
+# PC button flash timers
+# Per-button: expiry time for PC flash (monotonic), 0 if not flashing
+pc_flash_timers = [0.0] * BUTTON_COUNT
+
 blink_state = [False] * BUTTON_COUNT        # Current visual blink state (True=show ON color, False=show OFF color)
 blink_next_toggle = [0.0] * BUTTON_COUNT    # Next monotonic time to toggle blink state
 blink_rate_ms = [config.get("tap_rate_ms", 500)] * BUTTON_COUNT
@@ -688,6 +693,14 @@ tap_timestamps = [[] for _ in range(BUTTON_COUNT)]
 # Per-button tap active expiry (monotonic seconds). While now < tap_active_until[i]
 # the button will visually blink.
 tap_active_until = [0.0] * BUTTON_COUNT
+
+# MIDI state tracking for conditional actions
+# Dict[channel][cc_number] = value
+received_cc_values = {}
+
+# Program Change tracking: current PC value per MIDI channel (0-127)
+# Used by pc_inc/pc_dec buttons to track their position
+pc_values = [0] * PC_VALUES_SIZE
 
 # Performance optimization: batch LED updates
 # Set led_dirty = True whenever LEDs change, then call pixels.show() once at end of loop
@@ -1046,6 +1059,8 @@ def _send_tap_midi_fast(action_cfg, btn_num, idx):
 
     Every microsecond counts for tempo accuracy.
     """
+    global pc_values
+    
     if not action_cfg:
         return
 
@@ -1139,6 +1154,8 @@ def _send_action_from_cfg(action_cfg, btn_num, idx, action_name=None, skip_label
 
     Command types: cc, note, pc, pc_inc, pc_dec
     """
+    global pc_values
+    
     if not action_cfg:
         return
 
@@ -1594,6 +1611,8 @@ def _process_incoming_midi(msg):
     For ControlChange messages, matches CC number, channel, AND value for
     value-based scene switching (e.g., Quad Cortex: CC43=0, CC43=2, CC43=4 for scenes).
     """
+    global pc_values
+    
     if not msg:
         return
 
