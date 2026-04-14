@@ -17,33 +17,59 @@ export type { Condition } from './bindings/Condition';
 export type { MidiCommand } from './bindings/MidiCommand';
 export type { ConditionalCommand } from './bindings/ConditionalCommand';
 export type { CommandOrConditional } from './bindings/CommandOrConditional';
-export type { StateOverride } from './bindings/StateOverride';
+export type { StateOverride as GeneratedStateOverride } from './bindings/StateOverride';
 export type { ButtonConfig as GeneratedButtonConfig } from './bindings/ButtonConfig';
+export type { BankConfig as GeneratedBankConfig } from './bindings/BankConfig';
+export type { MidiCaptainConfig as GeneratedMidiCaptainConfig } from './bindings/MidiCaptainConfig';
 export type { EncoderPush } from './bindings/EncoderPush';
 export type { EncoderConfig } from './bindings/EncoderConfig';
 export type { ExpressionConfig } from './bindings/ExpressionConfig';
 export type { ExpressionPedals } from './bindings/ExpressionPedals';
 export type { DisplayConfig } from './bindings/DisplayConfig';
 export type { SplashScreenConfig } from './bindings/SplashScreenConfig';
-export type { BankConfig } from './bindings/BankConfig';
 export type { BankSwitchConfig } from './bindings/BankSwitchConfig';
-export type { MidiCaptainConfig } from './bindings/MidiCaptainConfig';
 
 // Import types for augmentation
-import type { GeneratedButtonConfig } from './bindings/ButtonConfig';
+import type { ButtonConfig as GeneratedButtonConfig } from './bindings/ButtonConfig';
+import type { StateOverride as GeneratedStateOverride } from './bindings/StateOverride';
+import type { BankConfig as GeneratedBankConfig } from './bindings/BankConfig';
+import type { MidiCaptainConfig as GeneratedMidiCaptainConfig } from './bindings/MidiCaptainConfig';
 import type { CommandOrConditional } from './bindings/CommandOrConditional';
+import type { ButtonMode } from './bindings/ButtonMode';
+import type { MessageType } from './bindings/MessageType';
+import type { OffMode } from './bindings/OffMode';
+
+// Augment StateOverride with event array fields (skipped in ts-rs due to custom deserializer)
+export interface StateOverride extends Omit<GeneratedStateOverride, 'press' | 'release' | 'long_press' | 'long_release'> {
+  press?: CommandOrConditional[];
+  release?: CommandOrConditional[];
+  long_press?: CommandOrConditional[];
+  long_release?: CommandOrConditional[];
+}
 
 // Augment ButtonConfig with event array fields (skipped in ts-rs due to custom deserializer)
 // Also make message_type, mode, off_mode optional since Rust has defaults via #[serde(default)]
-export interface ButtonConfig extends Omit<GeneratedButtonConfig, 'press' | 'release' | 'long_press' | 'long_release' | 'double_press' | 'message_type' | 'mode' | 'off_mode'> {
+export interface ButtonConfig extends Omit<GeneratedButtonConfig, 'message_type' | 'mode' | 'off_mode' | 'states'> {
+  message_type?: MessageType;
+  mode?: ButtonMode;
+  off_mode?: OffMode;
   press?: CommandOrConditional[];
   release?: CommandOrConditional[];
   long_press?: CommandOrConditional[];
   long_release?: CommandOrConditional[];
   double_press?: CommandOrConditional[];
-  message_type?: GeneratedButtonConfig['message_type'];
-  mode?: GeneratedButtonConfig['mode'];
-  off_mode?: GeneratedButtonConfig['off_mode'];
+  states?: StateOverride[];
+}
+
+// Augment BankConfig to use our custom ButtonConfig
+export interface BankConfig extends Omit<GeneratedBankConfig, 'buttons'> {
+  buttons: ButtonConfig[];
+}
+
+// Augment MidiCaptainConfig to use our custom ButtonConfig and BankConfig
+export interface MidiCaptainConfig extends Omit<GeneratedMidiCaptainConfig, 'buttons' | 'banks'> {
+  buttons?: ButtonConfig[];
+  banks?: BankConfig[];
 }
 
 // Import ButtonColor for internal use in BUTTON_COLORS mapping

@@ -17,24 +17,28 @@ fn default_bank_switch_method() -> BankSwitchMethod {
 pub struct StateOverride {
     // Multi-command event arrays (per-state actions)
     // Now supports conditional commands in addition to regular MIDI commands
+    #[ts(skip)]
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
         deserialize_with = "deserialize_one_or_many"
     )]
     pub press: Option<Vec<CommandOrConditional>>,
+    #[ts(skip)]
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
         deserialize_with = "deserialize_one_or_many"
     )]
     pub release: Option<Vec<CommandOrConditional>>,
+    #[ts(skip)]
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
         deserialize_with = "deserialize_one_or_many"
     )]
     pub long_press: Option<Vec<CommandOrConditional>>,
+    #[ts(skip)]
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",

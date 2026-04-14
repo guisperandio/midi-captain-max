@@ -11,40 +11,10 @@ import type { ButtonConfig, MidiCaptainConfig, MidiCommand, ConditionalCommand, 
 export function createButtonConfig(overrides?: Partial<ButtonConfig>): ButtonConfig {
 	const defaults: ButtonConfig = {
 		label: 'BTN 1',
-		long_press_label: null,
-		long_press_color: null,
-		long_press_label_persist: null,
-		conditional_label_persist: null,
 		color: 'red',
-		profile_id: null,
-		action_id: null,
-		press: null,
-		release: null,
-		long_press: null,
-		long_release: null,
-		double_press: null,
-		double_press_timeout_ms: null,
 		message_type: 'cc',
 		mode: 'toggle',
-		off_mode: 'dim',
-		dim_brightness: null,
-		channel: null,
-		cc: null,
-		cc_on: null,
-		cc_off: null,
-		note: null,
-		velocity_on: null,
-		velocity_off: null,
-		program: null,
-		pc_step: null,
-		flash_ms: null,
-		value_on: null,
-		value_off: null,
-		default_on: null,
-		keytimes: null,
-		states: null,
-		select_group: null,
-		default_selected: null
+		off_mode: 'dim'
 	};
 
 	return { ...defaults, ...overrides };
@@ -56,14 +26,8 @@ export function createButtonConfig(overrides?: Partial<ButtonConfig>): ButtonCon
 export function createMidiCommand(overrides?: Partial<MidiCommand>): MidiCommand {
 	const defaults: MidiCommand = {
 		type: 'cc',
-		channel: null,
 		cc: 20,
-		value: 127,
-		note: null,
-		velocity: null,
-		program: null,
-		pc_step: null,
-		threshold_ms: null
+		value: 127
 	};
 
 	return { ...defaults, ...overrides };
@@ -90,9 +54,7 @@ export function createConditionalCommand(
 		type: 'conditional',
 		if: createCondition('button_state'),
 		then: [createMidiCommand({ value: 127 })],
-		else: [createMidiCommand({ value: 0 })],
-		then_label: null,
-		else_label: null
+		else: [createMidiCommand({ value: 0 })]
 	};
 
 	return { ...defaults, ...overrides };
@@ -112,21 +74,7 @@ export function createMidiCaptainConfig(
 
 	const defaults: MidiCaptainConfig = {
 		device: 'std10',
-		global_channel: null,
-		usb_drive_name: null,
-		dev_mode: null,
-		midi_transport: null,
-		banks: null,
-		bank_switch: null,
-		active_bank: null,
-		buttons,
-		encoder: null,
-		expression: null,
-		display: null,
-		splash_screen: null,
-		long_press_threshold_ms: null,
-		double_press_timeout_ms: null,
-		channel_labels: null
+		buttons
 	};
 
 	return { ...defaults, ...overrides };
