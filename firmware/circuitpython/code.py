@@ -667,6 +667,8 @@ LONG_PRESS_THRESHOLD_MS = config.get("long_press_threshold_ms", DEFAULT_LONG_PRE
 # Double-press support state
 # Per-button: time when button was last released (monotonic), 0 if never released
 last_release_times = [0.0] * BUTTON_COUNT
+# Per-button: flag indicating if a double-press was detected on the current press/release cycle
+double_press_consumed = [False] * BUTTON_COUNT
 # Default double-press timeout (ms) if not provided in config
 DOUBLE_PRESS_TIMEOUT_MS = config.get("double_press_timeout_ms", DEFAULT_DOUBLE_PRESS_TIMEOUT_MS)
 
@@ -1842,7 +1844,8 @@ def handle_switches():
                         print(f"[DOUBLE-PRESS] Button {btn_num} double-pressed (interval: {(now - last_release)*1000:.0f}ms)")
                         _send_action_from_cfg(double_press_cfg, btn_num, idx, "double_press")
                         short_action_executed[idx] = True
-                        # Reset last release time to prevent triple-press being detected as another double-press
+                        # Mark as consumed so the release doesn't record a timestamp
+                        double_press_consumed[idx] = True
                         last_release_times[idx] = 0.0
                         # Skip normal press handling - double-press takes priority
                         continue
@@ -1961,8 +1964,14 @@ def handle_switches():
                 was_long = long_press_triggered[idx]
                 long_press_triggered[idx] = False
                 
-                # Record release time for double-press detection
-                last_release_times[idx] = now
+                # Record release time for double-press detection unless this
+                # press/release cycle already consumed a double-press. In that
+                # case, leave the timestamp cleared so a rapid third press does
+                # not chain into another immediate double-press detection.
+                if double_press_consumed[idx]:
+                    double_press_consumed[idx] = False
+                else:
+                    last_release_times[idx] = now
 
                 if was_long:
                     # Long-press completed: dispatch long_release if configured

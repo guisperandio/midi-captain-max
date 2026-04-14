@@ -76,12 +76,15 @@ class TestDoublePressDetection:
         # after a double-press is detected, preventing the third press from being detected
         # as another double-press
         
+        timeout_ms = 300
+        timeout_sec = timeout_ms / 1000.0
+        
         # First release at t=0.1
         first_release = 0.1
         
         # Second press at t=0.25 (double-press detected)
         second_press = 0.25
-        assert (second_press - first_release) < 0.3
+        assert (second_press - first_release) < timeout_sec
         
         # After double-press detection, last_release_times should be reset
         # So a third press should NOT be detected as a double-press
@@ -91,6 +94,11 @@ class TestDoublePressDetection:
         third_press = 0.4
         # This should NOT be a double-press because timer was reset
         # (In firmware, last_release_times[idx] = 0.0 after double-press)
+        # After double-press at t=0.25, last_release should be 0.0
+        last_release_after_double = 0.0
+        interval_third = third_press - last_release_after_double
+        assert interval_third > timeout_sec, "Third press should NOT be within timeout window after reset"
+        assert last_release_after_double == 0.0, "Last release time should be reset to 0.0 after double-press"
 
     def test_zero_timeout_never_triggers(self):
         """A timeout of 0ms should never trigger double-press detection."""

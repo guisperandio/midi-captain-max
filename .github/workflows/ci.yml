@@ -395,6 +395,12 @@ jobs:
             exit 0
           }
           
+          # Verify password is also present
+          if (-not $env:WINDOWS_CERTIFICATE_PASSWORD) {
+            echo "⚠️ Code signing certificate password not configured - building unsigned" >> $env:GITHUB_STEP_SUMMARY
+            exit 0
+          }
+          
           # Decode and import certificate to user cert store
           $bytes = [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE)
           $certPath = Join-Path $env:RUNNER_TEMP "cert.pfx"
