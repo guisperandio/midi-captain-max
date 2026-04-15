@@ -50,8 +50,11 @@ export const logger = {
   group: (label: string, fn: () => void) => {
     if (isDev) {
       console.group(label);
-      fn();
-      console.groupEnd();
+      try {
+        fn();
+      } finally {
+        console.groupEnd();
+      }
     }
   }
 };

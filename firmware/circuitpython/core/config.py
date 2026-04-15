@@ -33,7 +33,6 @@ def load_config(config_path="/config.json", button_count=10):
             return cfg
     except Exception as e:
         print(f"[CONFIG] Error loading config: {e}")
-        pass
 
     return _default_config(button_count)
 

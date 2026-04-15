@@ -57,7 +57,6 @@ except Exception as e:
     # If config fails to load, use safe defaults (performance mode)
     print(f"[BOOT] ⚠️  Config load failed: {e}")
     print("[BOOT] Using defaults: MIDICAPTAIN, performance mode")
-    pass
 
 # Check if user is holding switch 1 (GP1) during boot.
 # With pull-up: LOW (False) = pressed, HIGH (True) = not pressed.

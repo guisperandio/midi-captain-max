@@ -26,6 +26,15 @@ REPO_ROOT = SCRIPT_DIR.parent
 FIRMWARE_DIR = REPO_ROOT / "firmware" / "circuitpython"
 sys.path.insert(0, str(FIRMWARE_DIR / "core"))
 
+# Device-to-button-count mapping (matches firmware device modules)
+DEVICE_BUTTON_COUNTS = {
+    "std10": 10,
+    "mini6": 6,
+    "nano4": 4,
+    "duo2": 2,
+    "one1": 1,
+}
+
 try:
     from config import validate_config
 except ImportError as e:
@@ -75,26 +84,26 @@ def count_commands(config):
                             elif isinstance(event, dict):
                                 total += 1
     
-    # Count encoder commands
+    # Count encoder commands (defaults to enabled if not specified)
     encoder = config.get("encoder", {})
-    if encoder.get("enabled"):
+    if encoder.get("enabled", True):  # Default True like firmware
         total += 1  # encoder CC
         push = encoder.get("push", {})
-        if push.get("enabled"):
+        if push.get("enabled", True):  # Default True like firmware
             total += 2  # push on/off
     
-    # Count expression pedal commands
+    # Count expression pedal commands (defaults to enabled if not specified)
     expression = config.get("expression", {})
     for pedal_key in ["exp1", "exp2"]:
         pedal = expression.get(pedal_key, {})
-        if pedal.get("enabled"):
+        if pedal.get("enabled", True):  # Default True like firmware
             total += 1
     
     return total
 
 
 def count_conditional_blocks(config):
-    """Count conditional action blocks."""
+    """Count conditional action blocks (type: 'conditional')."""
     total = 0
     buttons = get_all_buttons(config)
     
@@ -103,7 +112,7 @@ def count_conditional_blocks(config):
             commands = btn.get(event_key, [])
             if isinstance(commands, list):
                 for cmd in commands:
-                    if isinstance(cmd, dict) and "condition" in cmd:
+                    if isinstance(cmd, dict) and cmd.get("type") == "conditional":
                         total += 1
     
     return total
@@ -171,7 +180,10 @@ def validate_config_file(config_path):
     
     # Validate structure
     try:
-        validated_config = validate_config(config)
+        # Infer button_count from device type for proper validation
+        device = config.get("device", "std10")
+        button_count = DEVICE_BUTTON_COUNTS.get(device, 10)
+        validated_config = validate_config(config, button_count)
     except Exception as e:
         print(f"❌ Validation failed for {config_path}:", file=sys.stderr)
         print(f"   {e}", file=sys.stderr)
