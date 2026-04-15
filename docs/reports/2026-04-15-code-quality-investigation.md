@@ -377,38 +377,36 @@ Ranked by (Impact × Urgency) / Effort:
 
 ### Critical (🔴 Do Now)
 
-- [ ] **[BUG] Silent exception swallowing in boot.py**
+- [x] **[BUG] Silent exception swallowing in boot.py** ✅ DONE
   - Files: `firmware/circuitpython/boot.py:56`
   - Fix: Add `except Exception as e:` + print
-  - Test: Boot with corrupt config, verify error logged
+  - Status: Fixed in PR #43
 
-- [ ] **[BUG] Undefined variable in config.py exception handler**
+- [x] **[BUG] Undefined variable in config.py exception handler** ✅ DONE
   - Files: `firmware/circuitpython/core/config.py:34`
   - Fix: Capture exception variable `as e`
-  - Test: Unit test with mock exception
+  - Status: Fixed in PR #43
 
-- [ ] **[PERF] Main loop blocking at 100% CPU**
+- [x] **[PERF] Main loop blocking at 100% CPU** ✅ DONE
   - Files: `firmware/circuitpython/code.py:2018`
   - Fix: Add `time.sleep(0.001)`
-  - Test: Measure CPU, verify MIDI responsive
+  - Status: Fixed in PR #43
 
-- [ ] **[CLEANUP] Remove dead code from code.py**
+- [x] **[CLEANUP] Remove dead code from code.py** ✅ VERIFIED NOT DEAD
   - Files: `firmware/circuitpython/code.py:1177-1350`
-  - Fix: Delete deprecated functions
-  - Test: Grep for references, run test suite
+  - Status: Verified `_send_action_from_cfg()` is actively used
 
-- [ ] **[SECURITY] Implement MIDI rate limiting**
+- [x] **[SECURITY] Implement MIDI rate limiting** ✅ ALREADY WORKING
   - Files: `firmware/circuitpython/handlers/midi.py`
-  - Fix: Use `MAX_MIDI_MESSAGES_PER_LOOP` in loop
-  - Test: Mock MIDI flood, verify cap
+  - Status: Already implemented, ADR created (docs/adr/ADR-001-midi-rate-limiting.md)
 
 ### High Priority (🟡 Next)
 
-- [ ] **[INFRA] Setup ts-rs for TypeScript codegen**
+- [x] **[INFRA] Setup ts-rs for TypeScript codegen** ✅ VERIFIED WORKING
 - [ ] **[REFACTOR] Split ButtonSettingsPanel**
 - [ ] **[TEST] Add handler package tests**
-- [ ] **[CLEANUP] Remove console.log statements**
-- [ ] **[FEATURE] Create config validator CLI**
+- [x] **[CLEANUP] Remove console.log statements** ✅ DONE (PR #43)
+- [x] **[FEATURE] Create config validator CLI** ✅ DONE (tools/validate_config.py)
 
 ---
 
@@ -446,11 +444,12 @@ Key areas for continued investment:
 - TypeScript/Rust type safety automation
 - Performance monitoring
 
-**Status**: Phase 1 complete, Phase 2 in progress
+**Status**: Phase 1 & 2 complete ✅
 
 ---
 
 **Report Generated**: April 15, 2026  
 **Phase 1 Completed**: April 16, 2026  
-**Phase 2 Started**: April 16, 2026  
-**Next Review**: After Phase 2 completion (estimated May 2026)
+**Phase 2 Completed**: April 16, 2026  
+**PR Created**: [#43 - feat: Phase 1 & 2 code quality improvements](https://github.com/guisperandio/midi-captain-max/pull/43)  
+**Next Review**: After handler tests (estimated May 2026)
