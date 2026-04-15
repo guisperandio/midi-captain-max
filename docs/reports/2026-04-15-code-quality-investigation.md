@@ -15,11 +15,11 @@ Comprehensive investigation of MIDI Captain Max codebase revealed **26 findings*
 
 ### Critical Issues Requiring Immediate Attention
 
-1. **Silent exception swallowing in boot.py** - Config errors invisible to users
-2. **Undefined variable in exception handler** - error logging itself crashes
-3. **Main loop blocking at 100% CPU** - unnecessary power drain, device runs hot
-4. **Dead code (~150 lines)** - deprecated functions still present, confusing maintainers
-5. **MIDI rate limiting not implemented** - device vulnerable to message flood lockup
+1. ✅ **Silent exception swallowing in boot.py** - Config errors invisible to users (FIXED)
+2. ✅ **Undefined variable in exception handler** - error logging itself crashes (FIXED)
+3. ✅ **Main loop blocking at 100% CPU** - unnecessary power drain, device runs hot (FIXED)
+4. ⚠️ **Dead code (~150 lines)** - `_send_action_from_cfg()` is NOT dead code (actively used, verified)
+5. ✅ **MIDI rate limiting** - Already implemented correctly (MAX_MIDI_MESSAGES_PER_LOOP enforced)
 
 ### Recommended Action Plan
 
