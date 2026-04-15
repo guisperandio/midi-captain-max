@@ -18,7 +18,6 @@ Exit codes:
 
 import sys
 import json
-import os
 from pathlib import Path
 
 # Add firmware modules to path
@@ -28,17 +27,30 @@ FIRMWARE_DIR = REPO_ROOT / "firmware" / "circuitpython"
 sys.path.insert(0, str(FIRMWARE_DIR / "core"))
 
 try:
-    from config import validate_config, validate_button
+    from config import validate_config
 except ImportError as e:
     print(f"❌ Failed to import validation modules: {e}", file=sys.stderr)
     print(f"   Make sure you're running from the repository root", file=sys.stderr)
     sys.exit(1)
 
 
+def get_all_buttons(config):
+    """Get all buttons from config, handling both single and multi-bank formats."""
+    # Multi-bank format
+    banks = config.get("banks", [])
+    if banks:
+        all_buttons = []
+        for bank in banks:
+            all_buttons.extend(bank.get("buttons", []))
+        return all_buttons
+    # Single format
+    return config.get("buttons", [])
+
+
 def count_commands(config):
     """Count total MIDI commands across all buttons and events."""
     total = 0
-    buttons = config.get("buttons", [])
+    buttons = get_all_buttons(config)
     
     for btn in buttons:
         # Count event array commands
@@ -84,7 +96,7 @@ def count_commands(config):
 def count_conditional_blocks(config):
     """Count conditional action blocks."""
     total = 0
-    buttons = config.get("buttons", [])
+    buttons = get_all_buttons(config)
     
     for btn in buttons:
         for event_key in ["press", "release", "long_press", "long_release"]:
@@ -100,19 +112,20 @@ def count_conditional_blocks(config):
 def analyze_config(config):
     """Generate configuration statistics."""
     device = config.get("device", "unknown")
-    button_count = len(config.get("buttons", []))
+    buttons = get_all_buttons(config)
+    button_count = len(buttons)
     command_count = count_commands(config)
     conditional_count = count_conditional_blocks(config)
     
     # Count keytimes usage
     keytimes_buttons = sum(
-        1 for btn in config.get("buttons", [])
+        1 for btn in buttons
         if btn.get("keytimes", 1) > 1
     )
     
     # Count select groups
     select_groups = set()
-    for btn in config.get("buttons", []):
+    for btn in buttons:
         sg = btn.get("select_group")
         if sg:
             select_groups.add(sg)
@@ -190,7 +203,7 @@ def validate_config_file(config_path):
     warnings = []
     
     # Check for buttons using CC 127 (at upper limit)
-    for btn in validated_config.get("buttons", []):
+    for btn in get_all_buttons(validated_config):
         for event_key in ["press", "release"]:
             commands = btn.get(event_key, [])
             if isinstance(commands, dict):
@@ -207,7 +220,7 @@ def validate_config_file(config_path):
     
     # Check for dense CC usage (potential conflicts)
     used_ccs = set()
-    for btn in validated_config.get("buttons", []):
+    for btn in get_all_buttons(validated_config):
         for event_key in ["press"]:
             commands = btn.get(event_key, [])
             if isinstance(commands, dict):
