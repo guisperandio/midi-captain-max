@@ -22,6 +22,7 @@
   import MidiMonitor from '$lib/components/MidiMonitor.svelte';
   import { loadConfig, validate, normalizeConfig, config, isDirty, canUndo, canRedo, undo, redo, updateField } from '$lib/formStore';
   import * as deviceService from '$lib/services/deviceService';
+  import { logger } from '$lib/logger';
 
   let appVersion = $state('');
   let showJsonModal = $state(false);
@@ -94,15 +95,15 @@
       appVersion = await getVersion();
 
       // Test MIDI ports detection
-      console.log('[APP] Testing MIDI ports...');
+      logger.debug('[APP] Testing MIDI ports...');
       try {
         const midiPorts = await listMidiPorts();
-        console.log('[APP] MIDI ports available:', midiPorts);
+        logger.debug('[APP] MIDI ports available:', midiPorts);
         if (midiPorts.length === 0) {
-          console.warn('[APP] No MIDI ports detected!');
+          logger.warn('[APP] No MIDI ports detected!');
         }
       } catch (midiErr) {
-        console.error('[APP] Failed to list MIDI ports:', midiErr);
+        logger.error('[APP] Failed to list MIDI ports:', midiErr);
       }
 
       $devices = await scanDevices();
@@ -328,7 +329,7 @@
       showToast(`Configuration exported successfully`, 'success');
       statusMessage.set(`Exported to ${filePath}`);
     } catch (error: any) {
-      console.error('[EXPORT] Error:', error);
+      logger.error('[EXPORT] Error:', error);
       await message(`Failed to export configuration: ${error.message || error}`, {
         title: 'Export Error',
         kind: 'error'
@@ -427,7 +428,7 @@
       showToast(`Configuration imported successfully`, 'success');
       statusMessage.set(`Imported from ${filename} - remember to save to device`);
     } catch (error: any) {
-      console.error('[IMPORT] Error:', error);
+      logger.error('[IMPORT] Error:', error);
       await message(`Failed to import configuration: ${error.message || error}`, {
         title: 'Import Error',
         kind: 'error'

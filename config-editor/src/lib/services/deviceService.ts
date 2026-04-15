@@ -18,6 +18,7 @@ import {
 } from '$lib/api';
 import { loadConfig, validate, normalizeConfig, config } from '$lib/formStore';
 import type { DetectedDevice } from '$lib/types';
+import { logger } from '$lib/logger';
 
 // Track reload timeout to allow cancellation on subsequent saves
 let reloadTimeoutId: ReturnType<typeof setTimeout> | null = null;
@@ -92,11 +93,11 @@ export async function saveToDevice(): Promise<boolean> {
     // Debug: log buttons with conditional commands
     const buttons = configObj.banks ? configObj.banks[0]?.buttons : configObj.buttons;
     if (buttons) {
-      buttons.forEach((btn: any, idx: number) => {
+      buttons.forEach((btn: ButtonConfig, idx: number) => {
         if (btn.press) {
-          btn.press.forEach((cmd: any, cmdIdx: number) => {
+          btn.press.forEach((cmd: CommandOrConditional, cmdIdx: number) => {
             if (cmd.type === 'conditional') {
-              console.log(`[SAVE] Button ${idx}, Press[${cmdIdx}]:`, {
+              logger.debug(`[SAVE] Button ${idx}, Press[${cmdIdx}]:`, {
                 type: cmd.type,
                 then_label: cmd.then_label,
                 else_label: cmd.else_label
@@ -108,12 +109,12 @@ export async function saveToDevice(): Promise<boolean> {
     }
 
     const configJson = JSON.stringify(configObj, null, 2);
-    console.log('[SAVE] Config JSON length:', configJson.length);
+    logger.debug('[SAVE] Config JSON length:', configJson.length);
     
     // Write to filesystem for persistence
     await writeConfigRaw(device.config_path, configJson);
     currentConfigRaw.set(configJson);
-    console.log('[SAVE] Written to filesystem');
+    logger.debug('[SAVE] Written to filesystem');
     
     // Reload method depends on dev_mode setting
     if (devMode) {
@@ -138,7 +139,7 @@ export async function saveToDevice(): Promise<boolean> {
         statusMessage.set('Config saved — device restarting…');
         showToast('Config saved! Device will restart.', 'success');
       } catch (e: any) {
-        console.warn('[SAVE] Serial reload failed:', e);
+        logger.warn('[SAVE] Serial reload failed:', e);
         statusMessage.set('Config saved to disk — restart device manually to apply');
         lastSavedTimestamp.set(new Date());
         saveFeedback.set('success');
@@ -288,7 +289,7 @@ export async function hotReloadDevice() {
     
     statusMessage.set('Device reloading...');
   } catch (e: any) {
-    console.warn('[HOT RELOAD] Failed:', e);
+    logger.warn('[HOT RELOAD] Failed:', e);
     
     // Clear reload flag and timer on error
     isReloadingDevice.set(false);

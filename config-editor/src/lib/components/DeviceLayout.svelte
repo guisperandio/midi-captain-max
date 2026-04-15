@@ -5,6 +5,7 @@
   import { get } from 'svelte/store';
   import { BUTTON_COLORS } from '$lib/types';
   import type { ButtonConfig, CommandOrConditional, MidiCommand } from '$lib/types';
+  import { logger } from '$lib/logger';
 
   // Get buttons from active bank if multi-bank mode, otherwise from top-level
   let buttons = $derived(
@@ -211,7 +212,7 @@
       const newState = !currentStates[index];
       currentStates[index] = newState;
       buttonStates.set([...currentStates]);
-      console.log(`[DeviceLayout] Button ${index} state changed to:`, newState);
+      logger.debug(`[DeviceLayout] Button ${index} state changed to:`, newState);
     }
 
     // Choose MIDI output port
@@ -247,9 +248,9 @@
 
     try {
       await sendMidiMessage(port, bytes);
-      console.log('[DeviceLayout] MIDI sent:', bytes, `[${bytes.map(b => '0x' + b.toString(16)).join(', ')}]`);
+      logger.debug('[DeviceLayout] MIDI sent:', bytes, `[${bytes.map(b => '0x' + b.toString(16)).join(', ')}]`);
     } catch (e) {
-      console.error('[DeviceLayout] MIDI send failed', e);
+      logger.error('[DeviceLayout] MIDI send failed', e);
       showToast('MIDI send failed', 'error');
     }
   }

@@ -1,6 +1,7 @@
 import { writable, derived, get } from 'svelte/store';
 import type { MidiCaptainConfig, ButtonConfig, EncoderConfig, DeviceType } from './types';
 import { validateConfig } from './validation';
+import { logger } from './logger';
 
 interface FormState {
   config: MidiCaptainConfig;
@@ -693,7 +694,7 @@ export function switchBank(index: number) {
   const banks = state.config.banks ?? [];
 
   if (index < 0 || index >= banks.length) {
-    console.error(`Invalid bank index: ${index}`);
+    logger.error(`Invalid bank index: ${index}`);
     return;
   }
 
@@ -707,7 +708,7 @@ export function addBank(name?: string) {
 
   // Enforce 8-bank maximum
   if (banks.length >= 8) {
-    console.error('Cannot add bank: maximum of 8 banks reached');
+    logger.error('Cannot add bank: maximum of 8 banks reached');
     return;
   }
 
@@ -753,7 +754,7 @@ export function duplicateBank(index: number) {
   const banks = state.config.banks ?? [];
 
   if (index < 0 || index >= banks.length) {
-    console.error(`Invalid bank index: ${index}`);
+    logger.error(`Invalid bank index: ${index}`);
     return;
   }
 
@@ -787,13 +788,13 @@ export function deleteBank(index: number) {
   const banks = state.config.banks ?? [];
 
   if (index < 0 || index >= banks.length) {
-    console.error(`Invalid bank index: ${index}`);
+    logger.error(`Invalid bank index: ${index}`);
     return;
   }
 
   // Prevent deleting the last bank
   if (banks.length <= 1) {
-    console.error('Cannot delete the last bank');
+    logger.error('Cannot delete the last bank');
     return;
   }
 
@@ -815,7 +816,7 @@ export function renameBank(index: number, newName: string) {
   const banks = state.config.banks ?? [];
 
   if (index < 0 || index >= banks.length) {
-    console.error(`Invalid bank index: ${index}`);
+    logger.error(`Invalid bank index: ${index}`);
     return;
   }
 

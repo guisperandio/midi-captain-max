@@ -2,6 +2,7 @@
 import type { MidiCommand } from '../types';
 import type { ProfileMidiCommand, DeviceProfile } from './types';
 import { getProfile } from './index';
+import { logger } from '$lib/logger';
 
 /**
  * Resolve a profile action to MIDI commands
@@ -15,13 +16,13 @@ export function resolveProfileAction(
 ): MidiCommand[] | undefined {
   const profile = getProfile(profileId);
   if (!profile) {
-    console.warn(`[Profile Resolver] Profile not found: ${profileId}`);
+    logger.warn(`[Profile Resolver] Profile not found: ${profileId}`);
     return undefined;
   }
 
   const action = profile.actions.find(a => a.id === actionId);
   if (!action) {
-    console.warn(`[Profile Resolver] Action not found: ${actionId} in profile ${profileId}`);
+    logger.warn(`[Profile Resolver] Action not found: ${actionId} in profile ${profileId}`);
     return undefined;
   }
 
