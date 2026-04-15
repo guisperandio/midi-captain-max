@@ -53,8 +53,10 @@ try:
     cfg = load_config("/config.json")
     dev_mode = get_dev_mode(cfg)
     usb_drive_name = get_usb_drive_name(cfg)
-except Exception:
+except Exception as e:
     # If config fails to load, use safe defaults (performance mode)
+    print(f"[BOOT] ⚠️  Config load failed: {e}")
+    print("[BOOT] Using defaults: MIDICAPTAIN, performance mode")
     pass
 
 # Check if user is holding switch 1 (GP1) during boot.

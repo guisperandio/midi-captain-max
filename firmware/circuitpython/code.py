@@ -2015,3 +2015,6 @@ while True:
         loop_time_ms = (time.monotonic() - loop_start) * 1000
         if loop_time_ms > SLOW_LOOP_THRESHOLD_MS:
             print(f"⚠️ Slow loop: {loop_time_ms:.1f}ms")
+
+    # Yield to USB stack and reduce CPU usage (1ms = 1000 Hz loop, still very responsive)
+    time.sleep(0.001)
