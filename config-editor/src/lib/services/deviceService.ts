@@ -17,7 +17,7 @@ import {
   listMidiPorts
 } from '$lib/api';
 import { loadConfig, validate, normalizeConfig, config } from '$lib/formStore';
-import type { DetectedDevice } from '$lib/types';
+import type { DetectedDevice, ButtonConfig, CommandOrConditional } from '$lib/types';
 import { logger } from '$lib/logger';
 
 // Track reload timeout to allow cancellation on subsequent saves

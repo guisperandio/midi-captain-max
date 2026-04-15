@@ -108,7 +108,7 @@
 
           if (ccMatches) {
             // Check if this button has a specific value configured (for select groups)
-            const btnValue = cmd.value ?? cmd.value_on;
+            const btnValue = cmd.value;
             const hasSpecificValue = btnValue !== undefined;
 
             if (hasSpecificValue) {
@@ -127,7 +127,7 @@
           if (match) {
             // Update persistent state based on CC value
             const mode = btn.mode ?? 'toggle';
-            const btnValue = cmd.value ?? cmd.value_on;
+            const btnValue = cmd.value;
             const hasSpecificValue = btnValue !== undefined;
 
             if (mode === 'toggle' || mode === 'select') {
