@@ -2,6 +2,7 @@
   import type { ConditionalCommand, CommandOrConditional, MidiCommand } from '$lib/types';
   import ConditionBuilder from './ConditionBuilder.svelte';
   import CommandRow from './CommandRow.svelte';
+  import { logger } from '$lib/logger';
 
   interface Props {
     conditional: ConditionalCommand;
@@ -20,14 +21,14 @@
   function updateThenLabel(event: Event) {
     const value = (event.target as HTMLInputElement).value;
     const finalValue = value || undefined;
-    console.log('[COND LABEL] updateThenLabel:', { value, finalValue });
+    logger.debug('[COND LABEL] updateThenLabel:', { value, finalValue });
     onUpdate({ ...conditional, then_label: finalValue });
   }
 
   function updateElseLabel(event: Event) {
     const value = (event.target as HTMLInputElement).value;
     const finalValue = value || undefined;
-    console.log('[COND LABEL] updateElseLabel:', { value, finalValue });
+    logger.debug('[COND LABEL] updateElseLabel:', { value, finalValue });
     onUpdate({ ...conditional, else_label: finalValue });
   }
 

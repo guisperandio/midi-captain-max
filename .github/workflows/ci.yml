@@ -275,10 +275,8 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: '20'
+      - name: Setup Config Editor Frontend
+        uses: ./.github/actions/setup-config-editor-frontend
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -325,11 +323,6 @@ jobs:
             -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           
           echo "✓ Code signing certificate imported" >> $GITHUB_STEP_SUMMARY
-
-      - name: Install frontend dependencies
-        run: |
-          cd config-editor
-          npm install
 
       - name: Patch version in config editor
         uses: ./.github/actions/patch-config-editor-version
@@ -419,10 +412,8 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: '20'
+      - name: Setup Config Editor Frontend
+        uses: ./.github/actions/setup-config-editor-frontend
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -467,11 +458,6 @@ jobs:
           echo "WINDOWS_CERT_THUMBPRINT=$thumbprint" >> $env:GITHUB_ENV
           
           echo "✓ Code signing certificate imported (thumbprint: $thumbprint)" >> $env:GITHUB_STEP_SUMMARY
-
-      - name: Install frontend dependencies
-        run: |
-          cd config-editor
-          npm install
 
       - name: Patch version in config editor
         uses: ./.github/actions/patch-config-editor-version

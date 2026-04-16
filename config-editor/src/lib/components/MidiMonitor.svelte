@@ -3,6 +3,7 @@
   import { onMidiEvent, listMidiPorts } from '$lib/api';
   import { midiPorts, selectedMidiPort } from '$lib/stores';
   import type { UnlistenFn } from '@tauri-apps/api/event';
+  import { logger } from '$lib/logger';
 
   // MIDI message type
   interface MidiMessage {
@@ -227,7 +228,7 @@
     listMidiPorts().then(ports => {
       midiPorts.set(ports);
     }).catch(e => {
-      console.error('[MIDI Monitor] Failed to list ports:', e);
+      logger.error('[MIDI Monitor] Failed to list ports:', e);
     });
 
     // Subscribe to MIDI events (don't start/stop listener - that's managed by main app)
@@ -241,7 +242,7 @@
         unlistenMidi = unlisten;
       }
     }).catch(e => {
-      console.error('[MIDI Monitor] Failed to subscribe to MIDI events:', e);
+      logger.error('[MIDI Monitor] Failed to subscribe to MIDI events:', e);
     });
 
     // Subscribe to outgoing MIDI messages (frontend custom event)

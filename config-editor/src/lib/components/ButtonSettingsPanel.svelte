@@ -8,6 +8,7 @@
   import Toggle from './Toggle.svelte';
   import { slide } from 'svelte/transition';
   import type { MidiCommand, ButtonConfig } from '$lib/types';
+  import { logger } from '$lib/logger';
   import { BUTTON_COLORS } from '$lib/types';
 
   // Get buttons from active bank if multi-bank mode, otherwise from top-level
@@ -139,7 +140,7 @@
   function updateState(stateIndex: number, field: string, value: unknown) {
     // Ensure states array exists and is large enough before updating
     if (!btn || !btn.states || stateIndex < 0 || stateIndex >= btn.states.length) {
-      console.warn(`updateState called with invalid state index ${stateIndex} (states length: ${btn?.states?.length ?? 0})`);
+      logger.warn(`updateState called with invalid state index ${stateIndex} (states length: ${btn?.states?.length ?? 0})`);
       return;
     }
     updateField(`${getButtonPath()}.states[${stateIndex}].${field}`, value);
