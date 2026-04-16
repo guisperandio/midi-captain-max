@@ -35,9 +35,18 @@ Supporting new pedal versions requires physical hardware for reverse engineering
 
 1. Fork the repo and create a branch from `main`
 2. Keep changes focused — one fix or feature per PR
-3. Test on hardware if at all possible
-4. Write a clear PR description explaining what changed and why
-5. Reference any related issues with `Closes #123` or `Related to #123`
+3. **Validate configs** before committing:
+   ```bash
+   python tools/validate_config.py firmware/circuitpython/config.json
+   ```
+4. **Use structured logging** in frontend code:
+   - Import `logger` from `config-editor/src/lib/logger.ts`
+   - Dev-only: `logger.debug()`, `logger.info()`
+   - Production: `logger.warn()`, `logger.error()`
+   - Avoid `console.log`, `console.warn`, `console.error`
+5. Test on hardware if at all possible
+6. Write a clear PR description explaining what changed and why
+7. Reference any related issues with `Closes #123` or `Related to #123`
 
 ---
 

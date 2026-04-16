@@ -1,0 +1,194 @@
+{
+  "device": "std10",
+  "global_channel": 0,
+  "usb_drive_name": "MIDICAPTAIN",
+  "dev_mode": false,
+  "buttons": [
+    {
+      "label": "PLAY",
+      "color": "green",
+      "mode": "momentary",
+      "press": [
+        {
+          "type": "sysex",
+          "data": "F0 7F 7F 06 02 F7"
+        }
+      ],
+      "release": [
+        {
+          "type": "sysex",
+          "data": "F0 7F 7F 06 01 F7"
+        }
+      ]
+    },
+    {
+      "label": "STOP",
+      "color": "red",
+      "mode": "momentary",
+      "press": [
+        {
+          "type": "sysex",
+          "data": "F0 7F 7F 06 01 F7"
+        }
+      ]
+    },
+    {
+      "label": "REC",
+      "color": "red",
+      "mode": "toggle",
+      "press": [
+        {
+          "type": "sysex",
+          "data": "F0 7F 7F 06 06 F7"
+        }
+      ],
+      "long_press": [
+        {
+          "type": "sysex",
+          "data": "F0 7F 7F 06 44 06 01 00 00 00 00 F7"
+        }
+      ],
+      "long_press_label": "RESET"
+    },
+    {
+      "label": "PAUSE",
+      "color": "yellow",
+      "mode": "momentary",
+      "press": [
+        {
+          "type": "sysex",
+          "data": "F0 7F 7F 06 09 F7"
+        }
+      ]
+    },
+    {
+      "label": "KEMPER",
+      "color": "cyan",
+      "mode": "momentary",
+      "press": [
+        {
+          "type": "sysex",
+          "data": "F0 00 20 33 02 7F 7C F7"
+        }
+      ]
+    },
+    {
+      "label": "QC A",
+      "color": "blue",
+      "mode": "toggle",
+      "select_group": "qc_scene",
+      "default_selected": true,
+      "press": [
+        {
+          "type": "sysex",
+          "data": "F0 00 01 78 43 00 F7"
+        }
+      ]
+    },
+    {
+      "label": "QC B",
+      "color": "purple",
+      "mode": "toggle",
+      "select_group": "qc_scene",
+      "press": [
+        {
+          "type": "sysex",
+          "data": "F0 00 01 78 43 01 F7"
+        }
+      ]
+    },
+    {
+      "label": "MULTI",
+      "color": "orange",
+      "mode": "momentary",
+      "press": [
+        {
+          "type": "cc",
+          "cc": 20,
+          "value": 127
+        },
+        {
+          "type": "sysex",
+          "data": "F0 7F 7F 06 02 F7"
+        },
+        {
+          "type": "pc",
+          "program": 5
+        }
+      ]
+    },
+    {
+      "label": "HELIX",
+      "color": "lime",
+      "mode": "momentary",
+      "press": [
+        {
+          "type": "sysex",
+          "data": "F0 00 01 0C 24 01 F7"
+        }
+      ]
+    },
+    {
+      "label": "MACRO",
+      "color": "white",
+      "mode": "momentary",
+      "long_press": [
+        {
+          "type": "cc",
+          "cc": 30,
+          "value": 127
+        }
+      ],
+      "press": [
+        {
+          "type": "cc",
+          "cc": 20,
+          "value": 127
+        }
+      ]
+    }
+  ],
+  "encoder": {
+    "enabled": true,
+    "cc": 11,
+    "label": "MOD",
+    "min": 0,
+    "max": 127,
+    "initial": 64,
+    "channel": 0,
+    "push": {
+      "enabled": true,
+      "mode": "toggle",
+      "label": "PUSH",
+      "cc": 14,
+      "channel": 0
+    }
+  },
+  "expression": {
+    "exp1": {
+      "enabled": true,
+      "cc": 12,
+      "label": "EXP1",
+      "min": 0,
+      "max": 127,
+      "polarity": "normal",
+      "threshold": 2,
+      "channel": 0
+    },
+    "exp2": {
+      "enabled": true,
+      "cc": 13,
+      "label": "EXP2",
+      "min": 0,
+      "max": 127,
+      "polarity": "normal",
+      "threshold": 2,
+      "channel": 0
+    }
+  },
+  "display": {
+    "button_text_size": "medium",
+    "status_text_size": "medium",
+    "expression_text_size": "medium"
+  }
+}

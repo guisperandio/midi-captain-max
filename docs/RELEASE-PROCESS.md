@@ -25,6 +25,21 @@ The release process consists of:
 
 CI automatically runs on **every push to main**, including docs-only changes. This ensures all commits are ready for release tagging.
 
+#### Pre-Release Validation
+
+Before tagging, verify configs are valid:
+
+```bash
+# Validate default configs
+python tools/validate_config.py firmware/circuitpython/config.json
+python tools/validate_config.py firmware/circuitpython/config-mini6.json
+
+# Or validate all configs at once
+python tools/validate_config.py --check-all
+```
+
+This catches config errors **before** they go into a release.
+
 #### Verify CI passed for the latest commit:
 
 ```bash

@@ -67,6 +67,7 @@
           <option value="pc">PC</option>
           <option value="pc_inc">PC+</option>
           <option value="pc_dec">PC-</option>
+          <option value="sysex">SysEx</option>
         </select>
       </div>
 
@@ -110,9 +111,21 @@
             value={(command as MidiCommand).pc_step ?? ''} placeholder="1"
             onblur={(e) => updateMidiField('pc_step', numVal(e))} />
         </div>
+      {:else if ((command as MidiCommand).type ?? 'cc') === 'sysex'}
+        <div class="field sysex-field">
+          <label>Hex Data (F0...F7)</label>
+          <input type="text"
+            value={(command as MidiCommand).data ?? ''}
+            placeholder="F0 7F 7F 06 02 F7"
+            onblur={(e) => updateMidiField('data', (e.target as HTMLInputElement).value)}
+            class="sysex-input" />
+          <span class="field-hint">Space-separated hex bytes (e.g., MMC Play, Kemper, MPC)</span>
+        </div>
       {/if}
 
-      <div class="field channel-field">
+      <d  disabled={((command as MidiCommand).type ?? 'cc') === 'sysex'}
+          title={((command as MidiCommand).type ?? 'cc') === 'sysex' ? 'SysEx messages do not use MIDI channels' : ''}
+        iv class="field channel-field">
         <label>Channel</label>
         <select
           value={(command as MidiCommand).channel !== undefined ? (command as MidiCommand).channel : 'global'}
@@ -216,6 +229,28 @@
   }
 
   .remove-btn:hover {
+
+  .sysex-field {
+    grid-column: 1 / -1; /* Span full width */
+  }
+
+  .sysex-input {
+    font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+    font-size: 11px;
+    letter-spacing: 0.5px;
+  }
+
+  .field-hint {
+    font-size: 10px;
+    color: var(--text-secondary);
+    font-style: italic;
+    margin-top: 2px;
+  }
+
+  .field select:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
     background: #dc2626;
   }
 </style>

@@ -112,6 +112,10 @@ pub struct MidiCommand {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub pc_step: Option<u8>,
+    // SysEx field (hex string: "F0 7F 7F 06 02 F7")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub data: Option<String>,
     // Optional threshold for long-press (on first command only)
     #[serde(skip_serializing_if = "Option::is_none")]
     #[ts(optional)]

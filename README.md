@@ -573,6 +573,40 @@ Check rotary encoder value:
 - All operators work with MIDI value range (0-127)
 - Conditions are evaluated at button press time using current device state
 
+### Config Validation
+
+Before deploying a config to your device, you can validate it offline using the provided CLI tool:
+
+```bash
+python tools/validate_config.py firmware/circuitpython/config.json
+```
+
+**Features:**
+- **Device-aware validation**: Checks button count matches device type (STD10=10, Mini6=6, etc.)
+- **Multi-bank support**: Validates bank switch buttons and all banked configurations
+- **Conditional detection**: Recognizes conditional commands in multi-command arrays
+- **Encoder/expression defaults**: Matches firmware behavior (enabled: true by default)
+- **Batch validation**: `--check-all` mode validates all device templates
+
+**Example output:**
+```
+✓ Config validation passed for std10
+  • Device: std10
+  • Buttons: 10
+  • Encoder: enabled
+  • Expression pedals: exp1, exp2
+  • Banks: 0
+```
+
+**Error example:**
+```
+✗ Config validation FAILED
+  • Button channel 16 exceeds max (15)
+  • Button 11 exceeds device limit for mini6 (6 buttons)
+```
+
+The validator uses the same validation logic as the Rust backend, catching config errors **before** you deploy to hardware.
+
 #### Example: Long-Press for Secondary Function
 
 ```json

@@ -176,6 +176,27 @@ git push origin v1.0.0-alpha.1
 - **JSON** for user-facing configuration (MIDI mappings, layouts, device settings)
 - Keep config schema documented and validated
 - Config editor app in `config-editor/` (Tauri + SvelteKit)
+- **Config Validator CLI**: Offline validation tool at `tools/validate_config.py`
+  - Device-aware validation (button counts per device)
+  - Multi-bank config support
+  - Conditional command detection
+  - Run before deploying: `python tools/validate_config.py firmware/circuitpython/config.json`
+  - Batch mode: `python tools/validate_config.py --check-all`
+
+### Logging & Debugging
+
+**Firmware (CircuitPython):**
+- Use `print()` for serial console output (auto-reconnect with `screen`)
+- All exceptions should log error details before fallback behavior
+- Never silently swallow exceptions (no bare `except: pass` without logging)
+
+**Config Editor (Frontend):**
+- Use structured logger utility (`config-editor/src/lib/logger.ts`)
+- **Dev-only output**: `logger.debug(msg)`, `logger.info(msg)`
+- **Always visible**: `logger.warn(msg)`, `logger.error(msg, error)`
+- **Grouped logs**: `logger.group(label, fn)` with automatic cleanup
+- **Migration**: Replace `console.log`/`console.warn`/`console.error` with logger equivalents
+- Logger provides clean production console output (no debug spam)
 
 ---
 
