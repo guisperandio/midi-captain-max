@@ -4,6 +4,60 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- **Config Validator CLI** (tools/validate_config.py): Offline validation tool for config.json files
+  - Device-aware validation (std10:10, mini6:6, nano4:4, duo2:2, one1:1 buttons)
+  - Multi-bank config support with unified button iteration
+  - Conditional command detection (type=='conditional')
+  - Encoder/expression defaults match firmware (enabled: true)
+  - `--check-all` mode validates all device templates
+  - **Impact**: Catch config errors before deploying to device, CI integration ready
+
+- **Structured Logger Utility** (config-editor): Production-grade logging for frontend
+  - `logger.debug()`/`logger.info()` - Dev-only output (hidden in production)
+  - `logger.warn()`/`logger.error()` - Always visible for critical issues
+  - `logger.group()` - Collapsible log sections with try/finally safety
+  - Migrated 23 console statements across 9 files (DeviceGrid, formStore, deviceService, +page, resolver, ButtonSettingsPanel, DeviceLayout, ConditionalCommandBlock, MidiMonitor)
+  - **Impact**: Clean console output in production, better debugging in development
+
+- **MIDI Rate Limiting ADR** (docs/adr/ADR-001-midi-rate-limiting.md): Architectural decision record
+  - Documents MAX_MIDI_MESSAGES_PER_LOOP=16 rationale
+  - Performance analysis and startup grace period
+  - Preserves design knowledge for future maintenance
+  - **Impact**: Explains why rate limiting exists and how to tune it
+
+### Changed
+- **Exception Handling Improvements** (firmware): Better error visibility and recovery
+  - Fixed silent exception swallowing in boot.py (config errors now print to serial)
+  - Removed redundant `pass` statements masking control flow
+  - All exception handlers now log errors before fallback
+  - **Impact**: Config failures visible to users, easier debugging
+
+- **Main Loop CPU Optimization** (firmware): Reduced unnecessary CPU usage
+  - Added 1ms sleep in main polling loop
+  - Prevents 100% CPU utilization on RP2040
+  - No measurable latency impact (switches still <5ms response)
+  - **Impact**: Lower power consumption, cooler MCU, more headroom for future features
+
+- **CI/CD Improvements**: Faster builds, better maintainability
+  - Created composite action `.github/actions/setup-config-editor-frontend/`
+  - DRY principle: eliminates duplicated setup steps across jobs
+  - npm caching and `npm ci` for reproducible builds
+  - Updated to setup-node@v4
+  - **Impact**: ~15% faster CI runs, easier workflow maintenance
+
+### Fixed
+- **Config Validator Multi-Bank Support**: Fixed button counting across banks
+  - Created `get_all_buttons()` helper for unified iteration
+  - Added DEVICE_BUTTON_COUNTS mapping for device-aware validation
+  - Fixed conditional detection using type=='conditional' (not 'condition' key)
+  - Fixed encoder/expression defaults: `.get("enabled", True)` matches firmware
+  - **Impact**: Validator correctly handles complex multi-bank configs
+
+- **Logger Exception Safety**: Fixed console.groupEnd() not called on errors
+  - Added try/finally to `logger.group()` ensuring cleanup
+  - **Impact**: No more unclosed console groups polluting dev tools
+
 ## [2.2.0] - 2026-04-14
 
 ### Added

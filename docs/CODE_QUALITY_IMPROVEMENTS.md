@@ -112,7 +112,38 @@ This document tracks identified code quality improvements and refactoring opport
 
 ## 🟡 Medium Priority Issues
 
-### 3. Circular Import Risk
+### 3. Console Output in Production ✅ COMPLETED
+
+**Problem:** Console.log statements pollute production builds and expose internal state.
+
+**Status:** ✅ Migrated to structured logger utility with dev/production modes.
+
+**Completion:** PR #43
+- Created `config-editor/src/lib/logger.ts` (structured logging utility)
+- Dev-only methods: `logger.debug()`, `logger.info()` (hidden in production)
+- Production methods: `logger.warn()`, `logger.error()` (always visible)
+- Grouped logging: `logger.group()` with try/finally safety
+- Migrated 23 console statements across 9 files:
+  - DeviceGrid.svelte
+  - formStore.ts
+  - deviceService.ts
+  - +page.svelte
+  - resolver.ts
+  - ButtonSettingsPanel.svelte
+  - DeviceLayout.svelte
+  - ConditionalCommandBlock.svelte
+  - MidiMonitor.svelte
+
+**Impact:**
+- Clean console output in production (no debug spam)
+- Better debugging experience in development
+- Exception-safe log grouping (no unclosed groups)
+
+**Estimated Effort:** ~~1-2 days~~ **DONE**
+
+---
+
+### 4. Circular Import Risk
 
 **Problem:** Main `code.py` imports from `core/` modules, but dependencies are fragile.
 
@@ -126,7 +157,21 @@ This document tracks identified code quality improvements and refactoring opport
 
 ---
 
-### 4. Magic Numbers Throughout Code ✅ COMPLETED
+### 4. Circular Import Risk
+
+**Problem:** Main `code.py` imports from `core/` modules, but dependencies are fragile.
+
+**Action Items:**
+- [ ] Create `firmware/dev/utils/` directory for shared utilities
+- [ ] Move pure functions (no hardware deps) to utils
+- [ ] Establish clear import hierarchy: `utils → core → handlers → main`
+- [ ] Document import rules in `firmware/dev/README.md`
+
+**Estimated Effort:** 3-4 days
+
+---
+
+### 5. Magic Numbers Throughout Code ✅ COMPLETED
 
 **Problem:** Hardcoded values make code difficult to tune and understand.
 
@@ -150,7 +195,7 @@ This document tracks identified code quality improvements and refactoring opport
 
 ---
 
-### 5. No Frontend Testing
+### 6. No Frontend Testing
 
 **Problem:** Config editor has zero automated tests for critical logic.
 
@@ -185,7 +230,7 @@ This document tracks identified code quality improvements and refactoring opport
 
 ---
 
-### 6. Inconsistent Validation (Frontend vs Backend)
+### 7. Inconsistent Validation (Frontend vs Backend)
 
 **Problem:** TypeScript validation doesn't match Rust validation, leading to bugs.
 
