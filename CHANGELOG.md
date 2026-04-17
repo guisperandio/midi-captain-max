@@ -8,7 +8,12 @@ All notable changes to this project will be documented in this file.
 - **SysEx (System Exclusive) MIDI Support**: Send device-specific MIDI commands
   - Firmware: SysEx message handler with hex string parsing (F0...F7 validation)
   - Config schema: `type: "sysex"` with `data: "F0 7F ..."` hex payload
-  - UI: SysEx command type dropdown, hex data input, info tooltip
+  - Rust backend: Added `Sysex` variant to MessageType, `data` field to MidiCommand
+  - Test coverage: Roundtrip serialization test for SysEx commands (`test_roundtrip_sysex_command`)
+  - UI: SysEx command type dropdown, hex data input field with monospace font
+  - UI: Info icon with custom tooltip explaining hex format and common devices
+  - UI: Responsive grid layout (Type 1fr, Hex Data 4fr, Channel 3fr) for optimal field sizes
+  - UI: Channel selector auto-disabled for SysEx (with tooltip explanation)
   - Documentation: Comprehensive examples for MMC, Kemper, Quad Cortex, Helix (docs/SYSEX-EXAMPLES.md)
   - Example config: Ready-to-use template (config-sysex-example.json)
   - **Use case**: AKAI MPC control (MMC Play/Stop/Rec + long-press Reset)
@@ -86,6 +91,11 @@ All notable changes to this project will be documented in this file.
 - **Logger Exception Safety**: Fixed console.groupEnd() not called on errors
   - Added try/finally to `logger.group()` ensuring cleanup
   - **Impact**: No more unclosed console groups polluting dev tools
+
+- **README Validator Description**: Corrected validation source of truth
+  - Changed from "Rust backend" to "CircuitPython firmware (imports from `firmware/circuitpython/core/config.py`)"
+  - Accurately reflects that CLI validator uses firmware validation logic
+  - **Impact**: Clear documentation of validation architecture
 
 ## [2.2.0] - 2026-04-14
 
