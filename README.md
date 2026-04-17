@@ -370,6 +370,67 @@ If `channel` is omitted, the command uses the button's `channel` field, or falls
 - **`select`**: Always turns ON (never toggles OFF), use with `select_group`
 - **`tap`**: Visual tap tempo, blinks on each press
 
+**One-shot pattern (trigger only):**
+
+To send MIDI **only on press** without any release message, simply omit the `release` field:
+
+```json
+{
+  "label": "KICK",
+  "color": "red",
+  "mode": "momentary",
+  "press": [
+    {"type": "note", "note": 36, "velocity": 127}  // Kick drum
+  ]
+  // No "release" field = nothing sent on release!
+}
+```
+
+**Behavior:**
+- Press → LED on + send MIDI (once)
+- Hold → LED stays on, **no repeated messages**
+- Release → LED off, **nothing sent**
+- Press again → LED on + send MIDI
+
+**Perfect for drum pads!** Momentary mode sends MIDI **once on press**, not continuously while held. With no `release` commands, you get clean one-shot triggers.
+
+This works in **any mode**:
+- **Momentary mode**: Trigger on press, silent on release (great for drum pads, one-shot samples)
+- **Toggle mode**: Action only when turning ON, silent when turning OFF
+- **Select mode**: Action only when selecting, silent when deselecting
+
+The firmware checks if a `release` action is configured before sending — if it's empty or missing, the button release is silent.
+
+**Repeat pattern (same message every press):**
+
+To send the **same MIDI message every time** you press the button (not alternating), use **toggle mode** with **identical commands** in both `press` and `release` arrays:
+
+```json
+{
+  "label": "TAP",
+  "color": "green",
+  "mode": "toggle",
+  "press": [
+    {"type": "cc", "cc": 64, "value": 127}
+  ],
+  "release": [
+    {"type": "cc", "cc": 64, "value": 127}  // Same as press!
+  ]
+}
+```
+
+How it works:
+- **First press**: Turns button ON, sends `press` commands (CC64=127)
+- **Second press**: Turns button OFF, sends `release` commands (also CC64=127)
+- **Third press**: Turns button ON, sends `press` commands (CC64=127)
+- Result: Same message sent **every time** you press
+
+**Use cases:**
+- Tap tempo (send same CC repeatedly for BPM detection)
+- Scene advance (increment scene on each press)
+- MIDI clock nudge or sync
+- Any device expecting repeated triggers of the same value
+
 **Select groups:**
 Buttons with the same `select_group` act like radio buttons — selecting one deselects others in the group. Works with both `toggle` and `select` modes.
 

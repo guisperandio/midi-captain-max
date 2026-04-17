@@ -1334,6 +1334,60 @@ The monitor uses an optimized ring buffer that can handle:
 - **Momentary**: Best for hold-while-active (sustain, freeze, tap tempo)
 - **Select**: Best for scenes, presets, or mode selection
 
+#### One-Shot / Trigger Mode (Perfect for Drum Pads!)
+
+To send MIDI **only on press** without any release message (like a drum pad or sample trigger), leave the **Release** event empty:
+
+1. Set button **Mode** to **Momentary**
+2. Add commands to **Press** event (e.g., Note 36, velocity 127)
+3. Leave **Release** event completely empty
+4. Done!
+
+**What happens:**
+- **Press button** → LED turns ON, sends MIDI message
+- **Hold button** → LED stays ON, **no repeated messages** (only sent once on press)
+- **Release button** → LED turns OFF, **nothing sent** (silent)
+- **Press again** → LED turns ON, sends MIDI message again
+
+**Perfect for drum kits!** Each press triggers the sound, LED gives you visual feedback, and you get the same behavior every time you press - no unwanted "note off" messages.
+
+**Important:** Momentary mode **does NOT continuously send** while held - it sends **once** on press, then **once** on release. By leaving Release empty, you get clean one-shot triggers ideal for drums and samples.
+
+This also works with Toggle mode:
+- **Toggle**: Sends MIDI only when turning ON, nothing when turning OFF
+
+**Use cases:**
+- Drum machines or samplers (trigger sounds)
+- One-shot effects ("fire and forget" reverb/delay throws)
+- Lighting cues or scene triggers
+- Any device expecting only trigger messages (no "off" state)
+
+#### Repeat Mode (Same Message Every Press)
+
+To send the **same MIDI message every time** you press the button (instead of alternating ON/OFF), use **Toggle mode** with **identical commands** in both Press and Release events:
+
+**Setup:**
+1. Set button **Mode** to **Toggle**
+2. Add commands to **Press** event (e.g., CC64=127)
+3. Add **the exact same commands** to **Release** event (CC64=127)
+
+**Result:**
+- First press → button turns ON, sends Press commands
+- Second press → button turns OFF, sends Release commands (identical to Press)
+- Third press → button turns ON, sends Press commands again
+- Etc.
+
+The button alternates visual state (LED on/off) but sends the same MIDI message every time!
+
+**Use cases:**
+- **Tap tempo**: Send same CC repeatedly for BPM detection
+- **Scene advance**: Increment scene number on each press
+- **MIDI sync/nudge**: Repeated sync messages
+- **Lighting cues**: Advance to next cue on each press
+- Any device expecting the same trigger value repeatedly
+
+**Visual feedback:** The LED will still toggle between ON and OFF states on each press, giving you visual confirmation that the button registered your press.
+
 ### MIDI Channels
 
 - Use **global channel** unless you need multiple devices
