@@ -1334,6 +1334,60 @@ O monitor usa um ring buffer otimizado que pode lidar com:
 - **Momentary**: Melhor para manter-enquanto-ativo (sustain, freeze, tap tempo)
 - **Select**: Melhor para cenas, presets ou seleção de modo
 
+#### Modo One-Shot / Trigger (Perfeito para Pads de Bateria!)
+
+Para enviar MIDI **apenas ao pressionar** sem nenhuma mensagem de liberação (como um pad de bateria ou trigger de sample), deixe o evento **Release** vazio:
+
+1. Defina o **Modo** do botão como **Momentary**
+2. Adicione comandos ao evento **Press** (ex: Nota 36, velocity 127)
+3. Deixe o evento **Release** completamente vazio
+4. Pronto!
+
+**O que acontece:**
+- **Pressionar botão** → LED acende, envia mensagem MIDI
+- **Segurar botão** → LED fica aceso, **sem mensagens repetidas** (enviado apenas uma vez ao pressionar)
+- **Soltar botão** → LED apaga, **nada é enviado** (silencioso)
+- **Pressionar novamente** → LED acende, envia mensagem MIDI novamente
+
+**Perfeito para kits de bateria!** Cada pressão aciona o som, o LED fornece feedback visual, e você obtém o mesmo comportamento toda vez que pressiona - sem mensagens indesejadas de "note off".
+
+**Importante:** O modo Momentary **NÃO envia continuamente** enquanto pressionado - ele envia **uma vez** ao pressionar e **uma vez** ao soltar. Ao deixar Release vazio, você obtém triggers one-shot limpos, ideais para bateria e samples.
+
+Isso também funciona com o modo Toggle:
+- **Toggle**: Envia MIDI apenas ao ligar, nada ao desligar
+
+**Casos de uso:**
+- Drum machines ou samplers (acionar sons)
+- Efeitos one-shot (reverb/delay "dispara e esquece")
+- Cues de iluminação ou triggers de cena
+- Qualquer dispositivo que espera apenas mensagens de trigger (sem estado "off")
+
+#### Modo Repetição (Mesma Mensagem a Cada Pressão)
+
+Para enviar a **mesma mensagem MIDI toda vez** que você pressiona o botão (em vez de alternar ON/OFF), use o modo **Toggle** com **comandos idênticos** nos eventos Press e Release:
+
+**Configuração:**
+1. Defina o **Modo** do botão como **Toggle**
+2. Adicione comandos ao evento **Press** (ex: CC64=127)
+3. Adicione **os mesmos comandos** ao evento **Release** (CC64=127)
+
+**Resultado:**
+- Primeira pressão → botão liga, envia comandos Press
+- Segunda pressão → botão desliga, envia comandos Release (idênticos aos Press)
+- Terceira pressão → botão liga, envia comandos Press novamente
+- Etc.
+
+O botão alterna o estado visual (LED on/off) mas envia a mesma mensagem MIDI toda vez!
+
+**Casos de uso:**
+- **Tap tempo**: Enviar mesmo CC repetidamente para detecção de BPM
+- **Avançar cena**: Incrementar número da cena a cada pressão
+- **MIDI sync/nudge**: Mensagens de sincronização repetidas
+- **Cues de iluminação**: Avançar para próxima cue a cada pressão
+- Qualquer dispositivo que espera o mesmo valor de trigger repetidamente
+
+**Feedback visual:** O LED ainda alternará entre estados ON e OFF a cada pressão, dando confirmação visual de que o botão registrou sua pressão.
+
 ### Canais MIDI
 
 - Use **canal global** a menos que precise de múltiplos dispositivos
