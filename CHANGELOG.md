@@ -35,6 +35,26 @@ All notable changes to this project will be documented in this file.
   - Preserves design knowledge for future maintenance
   - **Impact**: Explains why rate limiting exists and how to tune it
 
+- **One-Shot/Trigger Mode Documentation**: Document existing feature for drum pads and triggers
+  - README.md and USER-GUIDE-EN.md: Added "One-shot pattern" section
+  - Clarifies momentary mode sends MIDI once on press (not continuously)
+  - Example configs for drum pads with empty release events
+  - **Use cases**: Drum machines, samplers, lighting cues, one-shot effects
+  - **Impact**: Makes existing feature discoverable for users coming from other controllers
+
+- **Repeat Pattern Documentation**: Document sending same MIDI message every press
+  - README.md and USER-GUIDE-EN.md: Added "Repeat pattern" section
+  - Toggle mode with identical press/release commands
+  - Example configs for tap tempo, scene advance, sync messages
+  - **Use cases**: Tap tempo, scene advance, MIDI sync/nudge, lighting cues
+  - **Impact**: Enables creative use cases not obvious from standard toggle behavior
+
+- **Portuguese Documentation**: Translations for new button patterns
+  - USER-GUIDE-PT-BR.md: "Modo One-Shot / Trigger (Perfeito para Pads de Bateria!)"
+  - USER-GUIDE-PT-BR.md: "Modo Repetição (Mesma Mensagem a Cada Pressão)"
+  - Maintains parity with English documentation
+  - **Impact**: Portuguese-speaking users have full access to new patterns
+
 ### Changed
 - **Exception Handling Improvements** (firmware): Better error visibility and recovery
   - Fixed silent exception swallowing in boot.py (config errors now print to serial)
