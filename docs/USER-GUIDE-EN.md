@@ -1334,16 +1334,26 @@ The monitor uses an optimized ring buffer that can handle:
 - **Momentary**: Best for hold-while-active (sustain, freeze, tap tempo)
 - **Select**: Best for scenes, presets, or mode selection
 
-#### One-Shot / Trigger Mode
+#### One-Shot / Trigger Mode (Perfect for Drum Pads!)
 
 To send MIDI **only on press** without any release message (like a drum pad or sample trigger), leave the **Release** event empty:
 
-1. Add commands to **Press** event
-2. Leave **Release** event completely empty
-3. The button will trigger on press but be silent on release
+1. Set button **Mode** to **Momentary**
+2. Add commands to **Press** event (e.g., Note 36, velocity 127)
+3. Leave **Release** event completely empty
+4. Done!
 
-This works with any button mode:
-- **Momentary**: Trigger on press, silent on release
+**What happens:**
+- **Press button** → LED turns ON, sends MIDI message
+- **Hold button** → LED stays ON, **no repeated messages** (only sent once on press)
+- **Release button** → LED turns OFF, **nothing sent** (silent)
+- **Press again** → LED turns ON, sends MIDI message again
+
+**Perfect for drum kits!** Each press triggers the sound, LED gives you visual feedback, and you get the same behavior every time you press - no unwanted "note off" messages.
+
+**Important:** Momentary mode **does NOT continuously send** while held - it sends **once** on press, then **once** on release. By leaving Release empty, you get clean one-shot triggers ideal for drums and samples.
+
+This also works with Toggle mode:
 - **Toggle**: Sends MIDI only when turning ON, nothing when turning OFF
 
 **Use cases:**

@@ -376,15 +376,23 @@ To send MIDI **only on press** without any release message, simply omit the `rel
 
 ```json
 {
-  "label": "TRIG",
+  "label": "KICK",
   "color": "red",
   "mode": "momentary",
   "press": [
-    {"type": "cc", "cc": 20, "value": 127}
+    {"type": "note", "note": 36, "velocity": 127}  // Kick drum
   ]
   // No "release" field = nothing sent on release!
 }
 ```
+
+**Behavior:**
+- Press → LED on + send MIDI (once)
+- Hold → LED stays on, **no repeated messages**
+- Release → LED off, **nothing sent**
+- Press again → LED on + send MIDI
+
+**Perfect for drum pads!** Momentary mode sends MIDI **once on press**, not continuously while held. With no `release` commands, you get clean one-shot triggers.
 
 This works in **any mode**:
 - **Momentary mode**: Trigger on press, silent on release (great for drum pads, one-shot samples)
