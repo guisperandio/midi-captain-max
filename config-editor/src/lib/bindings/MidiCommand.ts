@@ -4,4 +4,4 @@ import type { MessageType } from "./MessageType";
 /**
  * MIDI command for multi-command event arrays
  */
-export type MidiCommand = { type: MessageType, channel?: number, cc?: number, value?: number, note?: number, velocity?: number, program?: number, pc_step?: number, threshold_ms?: number, };
+export type MidiCommand = { type: MessageType, channel?: number, cc?: number, value?: number, note?: number, velocity?: number, program?: number, pc_step?: number, data?: string, threshold_ms?: number, };

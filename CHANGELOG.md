@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **SysEx (System Exclusive) MIDI Support**: Send device-specific MIDI commands
+  - Firmware: SysEx message handler with hex string parsing (F0...F7 validation)
+  - Config schema: `type: "sysex"` with `data: "F0 7F ..."` hex payload
+  - Rust backend: Added `Sysex` variant to MessageType, `data` field to MidiCommand
+  - Test coverage: Roundtrip serialization test for SysEx commands (`test_roundtrip_sysex_command`)
+  - UI: SysEx command type dropdown, hex data input field with monospace font
+  - UI: Info icon with custom tooltip explaining hex format and common devices
+  - UI: Responsive grid layout (Type 1fr, Hex Data 4fr, Channel 3fr) for optimal field sizes
+  - UI: Channel selector auto-disabled for SysEx (with tooltip explanation)
+  - Documentation: Comprehensive examples for MMC, Kemper, Quad Cortex, Helix (docs/SYSEX-EXAMPLES.md)
+  - Example config: Ready-to-use template (config-sysex-example.json)
+  - **Use case**: AKAI MPC control (MMC Play/Stop/Rec + long-press Reset)
+  - **Impact**: Device-agnostic support for any SysEx-capable MIDI device
+
 - **Config Validator CLI** (tools/validate_config.py): Offline validation tool for config.json files
   - Device-aware validation (std10:10, mini6:6, nano4:4, duo2:2, one1:1 buttons)
   - Multi-bank config support with unified button iteration
@@ -25,6 +39,26 @@ All notable changes to this project will be documented in this file.
   - Performance analysis and startup grace period
   - Preserves design knowledge for future maintenance
   - **Impact**: Explains why rate limiting exists and how to tune it
+
+- **One-Shot/Trigger Mode Documentation**: Document existing feature for drum pads and triggers
+  - README.md and USER-GUIDE-EN.md: Added "One-shot pattern" section
+  - Clarifies momentary mode sends MIDI once on press (not continuously)
+  - Example configs for drum pads with empty release events
+  - **Use cases**: Drum machines, samplers, lighting cues, one-shot effects
+  - **Impact**: Makes existing feature discoverable for users coming from other controllers
+
+- **Repeat Pattern Documentation**: Document sending same MIDI message every press
+  - README.md and USER-GUIDE-EN.md: Added "Repeat pattern" section
+  - Toggle mode with identical press/release commands
+  - Example configs for tap tempo, scene advance, sync messages
+  - **Use cases**: Tap tempo, scene advance, MIDI sync/nudge, lighting cues
+  - **Impact**: Enables creative use cases not obvious from standard toggle behavior
+
+- **Portuguese Documentation**: Translations for new button patterns
+  - USER-GUIDE-PT-BR.md: "Modo One-Shot / Trigger (Perfeito para Pads de Bateria!)"
+  - USER-GUIDE-PT-BR.md: "Modo Repetição (Mesma Mensagem a Cada Pressão)"
+  - Maintains parity with English documentation
+  - **Impact**: Portuguese-speaking users have full access to new patterns
 
 ### Changed
 - **Exception Handling Improvements** (firmware): Better error visibility and recovery
@@ -57,6 +91,11 @@ All notable changes to this project will be documented in this file.
 - **Logger Exception Safety**: Fixed console.groupEnd() not called on errors
   - Added try/finally to `logger.group()` ensuring cleanup
   - **Impact**: No more unclosed console groups polluting dev tools
+
+- **README Validator Description**: Corrected validation source of truth
+  - Changed from "Rust backend" to "CircuitPython firmware (imports from `firmware/circuitpython/core/config.py`)"
+  - Accurately reflects that CLI validator uses firmware validation logic
+  - **Impact**: Clear documentation of validation architecture
 
 ## [2.2.0] - 2026-04-14
 

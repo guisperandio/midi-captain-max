@@ -10,7 +10,7 @@ except ImportError:
     # CircuitPython has json built-in, but just in case
     json = None
 
-VALID_TYPES = ("cc", "note", "pc", "pc_inc", "pc_dec")
+VALID_TYPES = ("cc", "note", "pc", "pc_inc", "pc_dec", "sysex")
 STATE_OVERRIDE_FIELDS = ("press", "release", "long_press", "long_release", "cc", "cc_on", "cc_off", "note", "velocity_on", "velocity_off", "program", "pc_step", "color", "label", "long_press_label", "long_press_color")
 
 
@@ -245,7 +245,7 @@ def _validate_single_command(cmd, index=0, default_channel=0):
         return a
 
     # Standard MIDI command types
-    if a_type not in ("cc", "note", "pc", "pc_inc", "pc_dec"):
+    if a_type not in ("cc", "note", "pc", "pc_inc", "pc_dec", "sysex"):
         a_type = "cc"
     a = {"type": a_type, "channel": _validate_channel(cmd.get("channel", default_channel), default_channel)}
     if a_type == "cc":
@@ -258,6 +258,14 @@ def _validate_single_command(cmd, index=0, default_channel=0):
         a["program"] = _clamp_state_field("program", cmd.get("program", 0))
     elif a_type in ("pc_inc", "pc_dec"):
         a["pc_step"] = _clamp_state_field("pc_step", cmd.get("pc_step", 1))
+    elif a_type == "sysex":
+        # SysEx requires hex string data (F0...F7)
+        data = cmd.get("data", "")
+        if isinstance(data, str) and data.strip():
+            a["data"] = data.strip()
+        else:
+            # Invalid sysex data - skip this command
+            return None
     # Optional threshold in milliseconds (for long_press events)
     thresh = cmd.get("threshold_ms", cmd.get("threshold", None))
     if isinstance(thresh, int) and thresh > 0:

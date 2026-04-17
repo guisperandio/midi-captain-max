@@ -68,6 +68,7 @@ class ActionDispatcher:
                 - note_on: NoteOn message (reused for performance)
                 - note_off: NoteOff message (reused for performance)
                 - pc: ProgramChange message (reused for performance)
+                - sysex: SystemExclusive constructor class (creates new instances)
             feature_flags: Dict with hardware feature flags:
                 - HAS_EXPRESSION: bool
                 - HAS_ENCODER: bool
@@ -91,7 +92,7 @@ class ActionDispatcher:
                 raise ValueError("Missing required display_ref: {}".format(ref_name))
         
         # Validate required MIDI messages
-        required_midi_msgs = ["cc", "note_on", "note_off", "pc"]
+        required_midi_msgs = ["cc", "note_on", "note_off", "pc", "sysex"]
         for msg_name in required_midi_msgs:
             if msg_name not in midi_msgs:
                 raise ValueError("Missing required midi_msg: {}".format(msg_name))
@@ -127,7 +128,7 @@ class ActionDispatcher:
         - Single command: {"type":"cc","cc":20,"value":127,"channel":0}
         - Multiple commands: [{"type":"cc",...}, {"type":"pc",...}]
 
-        Command types: cc, note, pc, pc_inc, pc_dec, conditional
+        Command types: cc, note, pc, pc_inc, pc_dec, sysex, conditional
         """
         if not action_cfg:
             return
@@ -377,6 +378,51 @@ class ActionDispatcher:
                 print(f"[MIDI TX] Ch{channel+1} PC{self.device_state.pc_values[channel]} -{step} (switch {btn_num})")
                 self.callbacks["set_label_text"](self.display_refs["status_label"], f"TX PC{self.device_state.pc_values[channel]}")
                 return True  # PC command sent
+
+            elif msg_type == "sysex":
+                # Parse hex string data (format: "F0 7F 7F 06 02 F7")
+                hex_data = cmd.get("data", "")
+                if not hex_data:
+                    print(f"[WARN] SysEx command missing 'data' field (button {btn_num})")
+                    return False
+                
+                try:
+                    # Parse hex string into bytes
+                    hex_bytes = [int(x, 16) for x in hex_data.split()]
+                    
+                    # Validate format: must start with F0 and end with F7
+                    if len(hex_bytes) < 2 or hex_bytes[0] != 0xF0 or hex_bytes[-1] != 0xF7:
+                        print(f"[WARN] Invalid SysEx format (must start with F0, end with F7): {hex_data}")
+                        return False
+                    
+                    # Extract manufacturer ID (1-3 bytes after F0, before data)
+                    # Standard: single byte (e.g., 0x7F for universal)
+                    # Extended: 3 bytes starting with 0x00 (e.g., 0x00 0x01 0x78 for NDSP Quad Cortex)
+                    if hex_bytes[1] == 0x00 and len(hex_bytes) >= 5:
+                        # Extended manufacturer ID (3 bytes)
+                        manufacturer_id = hex_bytes[1:4]
+                        data_bytes = hex_bytes[4:-1]  # Between manufacturer ID and F7
+                    else:
+                        # Standard manufacturer ID (1 byte)
+                        manufacturer_id = [hex_bytes[1]]
+                        data_bytes = hex_bytes[2:-1]  # Between manufacturer ID and F7
+                    
+                    # Create and send SystemExclusive message
+                    # Note: SystemExclusive constructor, not a reusable message object
+                    sysex_msg = self.midi_msgs["sysex"](manufacturer_id=manufacturer_id, data=data_bytes)
+                    self.callbacks["send_midi_message"](sysex_msg, channel=0)  # SysEx ignores channel
+                    
+                    # Format for display (show first few bytes)
+                    display_data = ' '.join(f'{b:02X}' for b in hex_bytes[:6])
+                    if len(hex_bytes) > 6:
+                        display_data += '...'
+                    print(f"[MIDI TX] SysEx: {hex_data} (switch {btn_num})")
+                    self.callbacks["set_label_text"](self.display_refs["status_label"], f"TX SysEx {display_data}")
+                    return False
+                
+                except (ValueError, IndexError) as e:
+                    print(f"[ERROR] Failed to parse SysEx data '{hex_data}': {e}")
+                    return False
 
             else:
                 print(f"[WARN] Unknown command type '{msg_type}' (button {btn_num})")

@@ -1966,6 +1966,7 @@ action_dispatcher = ActionDispatcher(
         "note_on": _midi_note_on_msg,
         "note_off": _midi_note_off_msg,
         "pc": _midi_pc_msg,
+        "sysex": SystemExclusive,  # Pass class, not instance (creates new instances per send)
     },
     feature_flags={
         "HAS_EXPRESSION": HAS_EXPRESSION,

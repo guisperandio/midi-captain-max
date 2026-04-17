@@ -61,6 +61,7 @@ pub enum MessageType {
     Pc,
     PcInc,
     PcDec,
+    Sysex,
 }
 
 /// Expression pedal polarity

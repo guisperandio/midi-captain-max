@@ -67,6 +67,7 @@
           <option value="pc">PC</option>
           <option value="pc_inc">PC+</option>
           <option value="pc_dec">PC-</option>
+          <option value="sysex">SysEx</option>
         </select>
       </div>
 
@@ -110,12 +111,26 @@
             value={(command as MidiCommand).pc_step ?? ''} placeholder="1"
             onblur={(e) => updateMidiField('pc_step', numVal(e))} />
         </div>
+      {:else if ((command as MidiCommand).type ?? 'cc') === 'sysex'}
+        <div class="field sysex-data">
+          <label>
+            Hex Data (F0...F7)
+            <button type="button" class="info-icon" aria-label="SysEx help" data-tooltip="Space-separated hex bytes. Examples: MMC Play, Kemper, MPC commands. See docs/SYSEX-EXAMPLES.md for more.">ⓘ</button>
+          </label>
+          <input type="text"
+            value={(command as MidiCommand).data ?? ''}
+            placeholder="F0 7F 7F 06 02 F7"
+            onblur={(e) => updateMidiField('data', (e.target as HTMLInputElement).value)}
+            class="sysex-input" />
+        </div>
       {/if}
 
       <div class="field channel-field">
         <label>Channel</label>
         <select
           value={(command as MidiCommand).channel !== undefined ? (command as MidiCommand).channel : 'global'}
+          disabled={((command as MidiCommand).type ?? 'cc') === 'sysex'}
+          title={((command as MidiCommand).type ?? 'cc') === 'sysex' ? 'SysEx messages do not use MIDI channels' : ''}
           onchange={(e) => {
             const rawVal = (e.target as HTMLSelectElement).value;
             // 'global' means inherit from global_channel (store as undefined)
@@ -159,8 +174,13 @@
   .command-fields {
     flex: 1;
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+    grid-template-columns: 1fr 2fr 2fr 3fr;
     gap: 8px;
+    align-items: start;
+  }
+
+  .field.sysex-data {
+    grid-column: 2 / 4;
   }
 
   .field {
@@ -175,6 +195,9 @@
     color: var(--text-secondary);
     text-transform: uppercase;
     letter-spacing: 0.5px;
+    line-height: 1.2;
+    display: block;
+    min-height: 14px;
   }
 
   .field select,
@@ -217,5 +240,80 @@
 
   .remove-btn:hover {
     background: #dc2626;
+  }
+
+  .sysex-input {
+    font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+    font-size: 11px;
+    letter-spacing: 0.5px;
+  }
+
+  .info-icon {
+    display: inline-block;
+    margin-left: 4px;
+    color: var(--accent-primary);
+    font-size: 12px;
+    cursor: help;
+    vertical-align: baseline;
+    opacity: 0.8;
+    transition: opacity 0.2s;
+    position: relative;
+    line-height: 1;
+    /* Button reset for accessibility */
+    background: none;
+    border: none;
+    padding: 0;
+    font: inherit;
+  }
+
+  .info-icon:hover,
+  .info-icon:focus {
+    opacity: 1;
+    outline: 2px solid var(--accent-primary);
+    outline-offset: 2px;
+  }
+
+  /* Custom tooltip on hover and focus */
+  .info-icon[data-tooltip]:hover::after,
+  .info-icon[data-tooltip]:focus::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    left: 50%;
+    bottom: 100%;
+    transform: translateX(-50%);
+    margin-bottom: 8px;
+    padding: 8px 12px;
+    background: var(--bg-dark);
+    color: var(--text-primary);
+    border: 1px solid var(--border-default);
+    border-radius: 6px;
+    font-size: 11px;
+    line-height: 1.4;
+    white-space: normal;
+    width: 280px;
+    text-align: left;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    z-index: 1000;
+    pointer-events: none;
+  }
+
+  /* Tooltip arrow */
+  .info-icon[data-tooltip]:hover::before,
+  .info-icon[data-tooltip]:focus::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    bottom: 100%;
+    transform: translateX(-50%);
+    margin-bottom: 2px;
+    border: 6px solid transparent;
+    border-top-color: var(--border-default);
+    z-index: 1000;
+    pointer-events: none;
+  }
+
+  .field select:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 </style>

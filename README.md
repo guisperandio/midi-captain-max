@@ -666,7 +666,7 @@ python tools/validate_config.py firmware/circuitpython/config.json
   • Button 11 exceeds device limit for mini6 (6 buttons)
 ```
 
-The validator uses the same validation logic as the Rust backend, catching config errors **before** you deploy to hardware.
+The validator uses the same validation logic as the CircuitPython firmware (imports from `firmware/circuitpython/core/config.py`), catching config errors **before** you deploy to hardware.
 
 #### Example: Long-Press for Secondary Function
 
