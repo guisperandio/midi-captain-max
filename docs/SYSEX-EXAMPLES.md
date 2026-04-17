@@ -218,7 +218,7 @@ See [config-sysex-example.json](../firmware/circuitpython/config-sysex-example.j
 - **SysEx messages ignore MIDI channels** — the channel selector in the UI is disabled for SysEx commands
 - **Validation**: Firmware validates format (must start with F0, end with F7)
 - **Manufacturer IDs**: Standard (1 byte) or Extended (3 bytes starting with 00)
-- **Performance**: SysEx messages are sent immediately with no inter-command delay
+- **Performance**: Multi-command actions apply a 2ms inter-command delay between all commands (including SysEx) for MIDI buffer management; SysEx has no additional delay
 - **Bidirectional**: Firmware currently sends SysEx but does not process incoming SysEx (planned for future release)
 
 ---

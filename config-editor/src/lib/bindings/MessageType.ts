@@ -3,4 +3,4 @@
 /**
  * Message type for a button
  */
-export type MessageType = "cc" | "note" | "pc" | "pc_inc" | "pc_dec";
+export type MessageType = "cc" | "note" | "pc" | "pc_inc" | "pc_dec" | "sysex";

@@ -115,7 +115,7 @@
         <div class="field sysex-data">
           <label>
             Hex Data (F0...F7)
-            <span class="info-icon" data-tooltip="Space-separated hex bytes. Examples: MMC Play, Kemper, MPC commands. See docs/SYSEX-EXAMPLES.md for more.">ⓘ</span>
+            <button type="button" class="info-icon" aria-label="SysEx help" data-tooltip="Space-separated hex bytes. Examples: MMC Play, Kemper, MPC commands. See docs/SYSEX-EXAMPLES.md for more.">ⓘ</button>
           </label>
           <input type="text"
             value={(command as MidiCommand).data ?? ''}
@@ -259,14 +259,23 @@
     transition: opacity 0.2s;
     position: relative;
     line-height: 1;
+    /* Button reset for accessibility */
+    background: none;
+    border: none;
+    padding: 0;
+    font: inherit;
   }
 
-  .info-icon:hover {
+  .info-icon:hover,
+  .info-icon:focus {
     opacity: 1;
+    outline: 2px solid var(--accent-primary);
+    outline-offset: 2px;
   }
 
-  /* Custom tooltip on hover */
-  .info-icon[data-tooltip]:hover::after {
+  /* Custom tooltip on hover and focus */
+  .info-icon[data-tooltip]:hover::after,
+  .info-icon[data-tooltip]:focus::after {
     content: attr(data-tooltip);
     position: absolute;
     left: 50%;
@@ -289,7 +298,8 @@
   }
 
   /* Tooltip arrow */
-  .info-icon[data-tooltip]:hover::before {
+  .info-icon[data-tooltip]:hover::before,
+  .info-icon[data-tooltip]:focus::before {
     content: '';
     position: absolute;
     left: 50%;
