@@ -393,6 +393,36 @@ This works in **any mode**:
 
 The firmware checks if a `release` action is configured before sending — if it's empty or missing, the button release is silent.
 
+**Repeat pattern (same message every press):**
+
+To send the **same MIDI message every time** you press the button (not alternating), use **toggle mode** with **identical commands** in both `press` and `release` arrays:
+
+```json
+{
+  "label": "TAP",
+  "color": "green",
+  "mode": "toggle",
+  "press": [
+    {"type": "cc", "cc": 64, "value": 127}
+  ],
+  "release": [
+    {"type": "cc", "cc": 64, "value": 127}  // Same as press!
+  ]
+}
+```
+
+How it works:
+- **First press**: Turns button ON, sends `press` commands (CC64=127)
+- **Second press**: Turns button OFF, sends `release` commands (also CC64=127)
+- **Third press**: Turns button ON, sends `press` commands (CC64=127)
+- Result: Same message sent **every time** you press
+
+**Use cases:**
+- Tap tempo (send same CC repeatedly for BPM detection)
+- Scene advance (increment scene on each press)
+- MIDI clock nudge or sync
+- Any device expecting repeated triggers of the same value
+
 **Select groups:**
 Buttons with the same `select_group` act like radio buttons — selecting one deselects others in the group. Works with both `toggle` and `select` modes.
 

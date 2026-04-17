@@ -1352,6 +1352,32 @@ This works with any button mode:
 - Lighting cues or scene triggers
 - Any device expecting only trigger messages (no "off" state)
 
+#### Repeat Mode (Same Message Every Press)
+
+To send the **same MIDI message every time** you press the button (instead of alternating ON/OFF), use **Toggle mode** with **identical commands** in both Press and Release events:
+
+**Setup:**
+1. Set button **Mode** to **Toggle**
+2. Add commands to **Press** event (e.g., CC64=127)
+3. Add **the exact same commands** to **Release** event (CC64=127)
+
+**Result:**
+- First press → button turns ON, sends Press commands
+- Second press → button turns OFF, sends Release commands (identical to Press)
+- Third press → button turns ON, sends Press commands again
+- Etc.
+
+The button alternates visual state (LED on/off) but sends the same MIDI message every time!
+
+**Use cases:**
+- **Tap tempo**: Send same CC repeatedly for BPM detection
+- **Scene advance**: Increment scene number on each press
+- **MIDI sync/nudge**: Repeated sync messages
+- **Lighting cues**: Advance to next cue on each press
+- Any device expecting the same trigger value repeatedly
+
+**Visual feedback:** The LED will still toggle between ON and OFF states on each press, giving you visual confirmation that the button registered your press.
+
 ### MIDI Channels
 
 - Use **global channel** unless you need multiple devices
