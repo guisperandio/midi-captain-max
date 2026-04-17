@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **SysEx (System Exclusive) MIDI Support**: Send device-specific MIDI commands
+  - Firmware: SysEx message handler with hex string parsing (F0...F7 validation)
+  - Config schema: `type: "sysex"` with `data: "F0 7F ..."` hex payload
+  - UI: SysEx command type dropdown, hex data input, info tooltip
+  - Documentation: Comprehensive examples for MMC, Kemper, Quad Cortex, Helix (docs/SYSEX-EXAMPLES.md)
+  - Example config: Ready-to-use template (config-sysex-example.json)
+  - **Use case**: AKAI MPC control (MMC Play/Stop/Rec + long-press Reset)
+  - **Impact**: Device-agnostic support for any SysEx-capable MIDI device
+
 - **Config Validator CLI** (tools/validate_config.py): Offline validation tool for config.json files
   - Device-aware validation (std10:10, mini6:6, nano4:4, duo2:2, one1:1 buttons)
   - Multi-bank config support with unified button iteration

@@ -664,4 +664,48 @@ mod tests {
         let serialized = serde_json::to_string_pretty(&config).expect("Failed to serialize");
         assert!(!serialized.contains("channel_labels")); // Should not appear when None
     }
+
+    #[test]
+    fn test_roundtrip_sysex_command() {
+        // Test that SysEx commands with data field survive deserialization/serialization
+        let json = r#"{
+            "device": "std10",
+            "global_channel": 0,
+            "buttons": [
+                {
+                    "label": "PLAY",
+                    "color": "green",
+                    "press": [
+                        {
+                            "type": "sysex",
+                            "data": "F0 7F 7F 06 02 F7"
+                        }
+                    ]
+                }
+            ]
+        }"#;
+
+        let config: MidiCaptainConfig = serde_json::from_str(json).expect("Failed to parse SysEx config");
+        let buttons = config.get_buttons();
+        assert_eq!(buttons.len(), 1);
+        
+        let button = &buttons[0];
+        assert!(button.press.is_some());
+        let press_commands = button.press.as_ref().unwrap();
+        assert_eq!(press_commands.len(), 1);
+        
+        // Verify SysEx command type and data field
+        if let CommandOrConditional::Midi(midi_cmd) = &press_commands[0] {
+            assert_eq!(midi_cmd.command_type, MessageType::Sysex);
+            assert!(midi_cmd.data.is_some());
+            assert_eq!(midi_cmd.data.as_ref().unwrap(), "F0 7F 7F 06 02 F7");
+        } else {
+            panic!("Expected MIDI command, got conditional");
+        }
+
+        // Verify round-trip: serialize and check data field is preserved
+        let serialized = serde_json::to_string_pretty(&config).expect("Failed to serialize SysEx config");
+        assert!(serialized.contains("sysex"));
+        assert!(serialized.contains("F0 7F 7F 06 02 F7"));
+    }
 }
