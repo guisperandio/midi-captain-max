@@ -370,6 +370,29 @@ If `channel` is omitted, the command uses the button's `channel` field, or falls
 - **`select`**: Always turns ON (never toggles OFF), use with `select_group`
 - **`tap`**: Visual tap tempo, blinks on each press
 
+**One-shot pattern (trigger only):**
+
+To send MIDI **only on press** without any release message, simply omit the `release` field:
+
+```json
+{
+  "label": "TRIG",
+  "color": "red",
+  "mode": "momentary",
+  "press": [
+    {"type": "cc", "cc": 20, "value": 127}
+  ]
+  // No "release" field = nothing sent on release!
+}
+```
+
+This works in **any mode**:
+- **Momentary mode**: Trigger on press, silent on release (great for drum pads, one-shot samples)
+- **Toggle mode**: Action only when turning ON, silent when turning OFF
+- **Select mode**: Action only when selecting, silent when deselecting
+
+The firmware checks if a `release` action is configured before sending — if it's empty or missing, the button release is silent.
+
 **Select groups:**
 Buttons with the same `select_group` act like radio buttons — selecting one deselects others in the group. Works with both `toggle` and `select` modes.
 
